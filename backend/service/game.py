@@ -59,6 +59,12 @@ def discard_card(game_id: str, card: dict, perspective_player: int) -> dict:
     return _state(game, game_id, perspective_player)
 
 
+def reorder_cards(game_id: str, player_num: int, card_order: List[int], perspective_player: int) -> dict:
+    game = _get(game_id)
+    game.reorder_cards(player_num, card_order)
+    return _state(game, game_id, perspective_player)
+
+
 def open_hand(game_id: str, tress_groups: List[List[dict]], flush_groups: List[List[dict]], perspective_player: int) -> dict:
     game = _get(game_id)
     game.open_hand(tress_groups, flush_groups)

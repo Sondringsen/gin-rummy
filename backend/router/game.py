@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from backend.models.game import (
     CreateGameRequest, InitialDiscardRequest, DrawDiscardRequest,
-    DiscardCardRequest, OpenHandRequest, BuildOnRequest, GameState,
+    DiscardCardRequest, OpenHandRequest, BuildOnRequest, ReorderRequest, GameState,
 )
 import backend.service.game as svc
 
@@ -67,3 +67,8 @@ def build_on(game_id: str, req: BuildOnRequest, player: int = Query(0)):
 @router.post('/{game_id}/next-round', response_model=GameState)
 def next_round(game_id: str, player: int = Query(0)):
     return _wrap(svc.next_round, game_id, player)
+
+
+@router.post('/{game_id}/reorder', response_model=GameState)
+def reorder_cards(game_id: str, req: ReorderRequest, player: int = Query(0)):
+    return _wrap(svc.reorder_cards, game_id, req.player_num, req.card_order, player)

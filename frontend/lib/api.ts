@@ -87,3 +87,16 @@ export async function buildOn(
 export async function nextRound(gameId: string, perspective: number): Promise<GameState> {
   return request<GameState>(`${BASE}/${gameId}/next-round?player=${perspective}`, { method: 'POST' });
 }
+
+export async function reorderCards(
+  gameId: string,
+  playerNum: number,
+  cardOrder: number[],
+  perspective: number,
+): Promise<GameState> {
+  return request<GameState>(`${BASE}/${gameId}/reorder?player=${perspective}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_num: playerNum, card_order: cardOrder }),
+  });
+}

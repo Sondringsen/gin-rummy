@@ -254,6 +254,12 @@ class GinRummy:
         self._advance_turn()
         self._check_round_over()
 
+    def reorder_cards(self, player_num: int, card_order: List[int]) -> None:
+        hand = self.player_cards[player_num]
+        if sorted(card_order) != list(range(len(hand))):
+            raise ValueError(f'card_order must be a permutation of 0..{len(hand)-1}')
+        self.player_cards[player_num] = [hand[i] for i in card_order]
+
     def _advance_turn(self):
         self.player_turn = (self.player_turn + 1) % self.n_players
 

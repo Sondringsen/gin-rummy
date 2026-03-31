@@ -47,6 +47,11 @@ class PlayerView(BaseModel):
     score: int
 
 
+class ReorderRequest(BaseModel):
+    player_num: int
+    card_order: List[int]
+
+
 class RoundRequirements(BaseModel):
     tress: int
     flush: int

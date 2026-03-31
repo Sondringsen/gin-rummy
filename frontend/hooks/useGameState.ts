@@ -131,6 +131,30 @@ export function useGameState(gameId: string, initialState: GameState) {
     }
   }, [gameId, perspective, selectedCards, buildTarget]);
 
+  const doReorder = useCallback(async (newCards: CardModel[]) => {
+    const myCards = state.players[perspective]?.cards ?? [];
+    const pool = new Map<string, number[]>();
+    myCards.forEach((card, idx) => {
+      const key = `${card.suit}:${card.value}`;
+      if (!pool.has(key)) pool.set(key, []);
+      pool.get(key)!.push(idx);
+    });
+    const cardOrder: number[] = [];
+    for (const card of newCards) {
+      const indices = pool.get(`${card.suit}:${card.value}`);
+      if (!indices?.length) return;
+      cardOrder.push(indices.shift()!);
+    }
+    if (cardOrder.length !== myCards.length) return;
+    try {
+      setError(null);
+      const s = await api.reorderCards(gameId, perspective, cardOrder, perspective);
+      setState(s);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [gameId, perspective, state]);
+
   const doNextRound = useCallback(async () => {
     try {
       setError(null);
@@ -179,6 +203,7 @@ export function useGameState(gameId: string, initialState: GameState) {
     doOpen,
     doBuildOn,
     doNextRound,
+    doReorder,
     startBuild,
     cancelAction,
   };

@@ -1,6 +1,7 @@
 'use client';
 
-import { GameState } from '@/lib/types';
+import { useEffect, useState } from 'react';
+import { CardModel, GameState } from '@/lib/types';
 import { useGameState } from '@/hooks/useGameState';
 import Card from './Card';
 import Hand from './Hand';
@@ -8,6 +9,28 @@ import OpenCards from './OpenCards';
 import GroupSelector from './GroupSelector';
 import ScoreBoard from './ScoreBoard';
 import PlayerSwitcher from './PlayerSwitcher';
+
+type SortMode = 'none' | 'value' | 'suit';
+
+const SUIT_ORDER: Record<string, number> = { S: 0, H: 1, D: 2, C: 3 };
+
+function applySort(cards: CardModel[], mode: SortMode): CardModel[] {
+  if (mode === 'value') {
+    return [...cards].sort((a, b) => a.value !== b.value ? a.value - b.value : SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit]);
+  }
+  if (mode === 'suit') {
+    return [...cards].sort((a, b) => a.suit !== b.suit ? SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit] : a.value - b.value);
+  }
+  return cards;
+}
+
+function loadSortMode(playerNum: number): SortMode {
+  try { return (localStorage.getItem(`gin-rummy-sort-p${playerNum}`) as SortMode) ?? 'none'; } catch { return 'none'; }
+}
+
+function saveSortMode(playerNum: number, mode: SortMode) {
+  try { localStorage.setItem(`gin-rummy-sort-p${playerNum}`, mode); } catch { /* ignore */ }
+}
 
 interface GameClientProps {
   gameId: string;
@@ -35,6 +58,7 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
     doOpen,
     doBuildOn,
     doNextRound,
+    doReorder,
     startBuild,
     cancelAction,
   } = useGameState(gameId, initialState);
@@ -42,6 +66,17 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
   const myView = state.players[perspective];
   const isMyTurn = state.player_turn === perspective;
   const iHaveOpened = myView?.has_opened ?? false;
+  const myCards = myView?.cards ?? [];
+
+  // Sort mode is per-player UI preference only (persisted in localStorage); actual order lives in backend
+  const [sortMode, setSortMode] = useState<SortMode>(() => loadSortMode(perspective));
+  useEffect(() => { setSortMode(loadSortMode(perspective)); }, [perspective]);
+
+  function handleSort(mode: SortMode) {
+    saveSortMode(perspective, mode);
+    setSortMode(mode);
+    doReorder(applySort(myCards, mode));
+  }
 
   // ---- Game over screen ----
   if (state.game_over && !state.round_over) {
@@ -96,7 +131,6 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
     );
   }
 
-  const myCards = myView?.cards ?? [];
   const canDrawDeck = isMyTurn && !state.has_drawn && !state.pre_round_phase;
   const canDrawDiscard = state.can_draw_from_discarded && !state.pre_round_phase && !!state.discard_top;
   const canDiscard = isMyTurn && state.has_drawn;
@@ -146,7 +180,6 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
                     Player {p.player_num + 1} {state.player_turn === p.player_num ? '(their turn)' : ''}
                   </span>
                   <span className="text-xs text-gray-500">{p.card_count} cards</span>
-                  {/* Out-of-turn discard draw */}
                   {canDrawDiscard && p.player_num !== perspective && (
                     <button
                       onClick={() => doDrawFromDiscard(p.player_num)}
@@ -183,7 +216,6 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
 
         {/* Center: deck + discard */}
         <section className="flex items-center gap-6 justify-center py-2">
-          {/* Fresh deck */}
           <div className="flex flex-col items-center gap-1">
             <span className="text-xs text-gray-400">Deck ({state.fresh_deck_count})</span>
             <button
@@ -198,7 +230,6 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
             </button>
           </div>
 
-          {/* Discard pile */}
           <div className="flex flex-col items-center gap-1">
             <span className="text-xs text-gray-400">Discard</span>
             <button
@@ -216,18 +247,33 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
 
         {/* My hand */}
         <section className="flex flex-col gap-3 mt-auto">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-white">Your hand</span>
             <span className="text-xs text-gray-400">({myCards.length} cards)</span>
             {selectedCards.length > 0 && (
               <span className="text-xs text-blue-400">{selectedCards.length} selected</span>
             )}
+            <div className="ml-auto flex gap-1">
+              <button
+                onClick={() => handleSort('value')}
+                className={`text-xs px-2 py-0.5 rounded text-gray-300 ${sortMode === 'value' ? 'bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'}`}
+              >
+                Sort value
+              </button>
+              <button
+                onClick={() => handleSort('suit')}
+                className={`text-xs px-2 py-0.5 rounded text-gray-300 ${sortMode === 'suit' ? 'bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'}`}
+              >
+                Sort suit
+              </button>
+            </div>
           </div>
 
           <Hand
             cards={myCards}
             selectedCards={selectedCards}
             onCardClick={toggleCard}
+            onReorder={(cards) => { saveSortMode(perspective, 'none'); setSortMode('none'); doReorder(cards); }}
             label={`Player ${perspective + 1} (you)`}
           />
 
