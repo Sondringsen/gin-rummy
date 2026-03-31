@@ -84,6 +84,22 @@ export async function buildOn(
   });
 }
 
+export async function replaceWild(
+  gameId: string,
+  playerNum: number,
+  targetPlayer: number,
+  groupType: 'tress' | 'flush',
+  groupIndex: number,
+  card: CardModel,
+  perspective: number,
+): Promise<GameState> {
+  return request<GameState>(`${BASE}/${gameId}/replace-wild?player=${perspective}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_num: playerNum, target_player: targetPlayer, group_type: groupType, group_index: groupIndex, card }),
+  });
+}
+
 export async function nextRound(gameId: string, perspective: number): Promise<GameState> {
   return request<GameState>(`${BASE}/${gameId}/next-round?player=${perspective}`, { method: 'POST' });
 }

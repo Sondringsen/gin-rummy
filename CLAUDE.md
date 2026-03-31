@@ -45,3 +45,4 @@ The score is calculated as follows:
 - A player can draw the top card from the discarded deck of cards out of turn. This is penalized by having to draw a card from the deck of fresh cards.
 - In the final round a player most open with all the cards (no card can be discarded). This means that in the final round only one player is going to open.
 - You cannot draw from the cards that are discarded as the first i.e. when the players discard one of their 12 cards before the round begins.
+- If an opened build contains a two of spades (used as a joker), a player who has already opened can replace it with the card it represents and take the two of spades into their hand to use in further building.

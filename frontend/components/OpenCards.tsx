@@ -1,4 +1,5 @@
 import { CardModel, GroupType } from '@/lib/types';
+import { isWild } from '@/lib/gameUtils';
 import Card from './Card';
 
 interface PlayerOpenCardsProps {
@@ -7,16 +8,19 @@ interface PlayerOpenCardsProps {
   openFlush: CardModel[][];
   canBuild: boolean;
   onBuildClick?: (targetPlayer: number, groupType: GroupType, groupIndex: number) => void;
+  onReplaceWildClick?: (targetPlayer: number, groupType: GroupType, groupIndex: number) => void;
 }
 
 function GroupDisplay({
   group,
   label,
   onBuild,
+  onReplaceWild,
 }: {
   group: CardModel[];
   label: string;
   onBuild?: () => void;
+  onReplaceWild?: () => void;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -30,6 +34,14 @@ function GroupDisplay({
             Build
           </button>
         )}
+        {onReplaceWild && (
+          <button
+            onClick={onReplaceWild}
+            className="text-xs px-2 py-0.5 rounded bg-yellow-700 hover:bg-yellow-600 text-white"
+          >
+            Replace wild
+          </button>
+        )}
       </div>
       <div className="flex gap-1 flex-wrap">
         {group.map((card, i) => (
@@ -40,7 +52,7 @@ function GroupDisplay({
   );
 }
 
-export default function OpenCards({ playerNum, openTress, openFlush, canBuild, onBuildClick }: PlayerOpenCardsProps) {
+export default function OpenCards({ playerNum, openTress, openFlush, canBuild, onBuildClick, onReplaceWildClick }: PlayerOpenCardsProps) {
   if (openTress.length === 0 && openFlush.length === 0) return null;
 
   return (
@@ -53,6 +65,7 @@ export default function OpenCards({ playerNum, openTress, openFlush, canBuild, o
             group={group}
             label={`Tress ${i + 1}`}
             onBuild={canBuild && onBuildClick ? () => onBuildClick(playerNum, 'tress', i) : undefined}
+            onReplaceWild={canBuild && onReplaceWildClick && group.some(isWild) ? () => onReplaceWildClick(playerNum, 'tress', i) : undefined}
           />
         ))}
         {openFlush.map((group, i) => (
@@ -61,6 +74,7 @@ export default function OpenCards({ playerNum, openTress, openFlush, canBuild, o
             group={group}
             label={`Flush ${i + 1}`}
             onBuild={canBuild && onBuildClick ? () => onBuildClick(playerNum, 'flush', i) : undefined}
+            onReplaceWild={canBuild && onReplaceWildClick && group.some(isWild) ? () => onReplaceWildClick(playerNum, 'flush', i) : undefined}
           />
         ))}
       </div>

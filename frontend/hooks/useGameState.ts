@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { CardModel, GameState, GroupType } from '@/lib/types';
 import * as api from '@/lib/api';
 
-export type PendingAction = 'none' | 'initial_discard' | 'open' | 'build';
+export type PendingAction = 'none' | 'initial_discard' | 'open' | 'build' | 'replace_wild';
 
 interface BuildTarget {
   targetPlayer: number;
@@ -167,8 +167,36 @@ export function useGameState(gameId: string, initialState: GameState) {
     }
   }, [gameId, perspective]);
 
+  const doReplaceWild = useCallback(async () => {
+    if (!buildTarget || selectedCards.length !== 1) return;
+    try {
+      setError(null);
+      const s = await api.replaceWild(
+        gameId,
+        perspective,
+        buildTarget.targetPlayer,
+        buildTarget.groupType,
+        buildTarget.groupIndex,
+        selectedCards[0],
+        perspective,
+      );
+      setState(s);
+      setSelectedCards([]);
+      setPendingAction('none');
+      setBuildTarget(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [gameId, perspective, selectedCards, buildTarget]);
+
   const startBuild = useCallback((targetPlayer: number, groupType: GroupType, groupIndex: number) => {
     setPendingAction('build');
+    setBuildTarget({ targetPlayer, groupType, groupIndex });
+    setSelectedCards([]);
+  }, []);
+
+  const startReplaceWild = useCallback((targetPlayer: number, groupType: GroupType, groupIndex: number) => {
+    setPendingAction('replace_wild');
     setBuildTarget({ targetPlayer, groupType, groupIndex });
     setSelectedCards([]);
   }, []);
@@ -202,9 +230,11 @@ export function useGameState(gameId: string, initialState: GameState) {
     doDiscard,
     doOpen,
     doBuildOn,
+    doReplaceWild,
     doNextRound,
     doReorder,
     startBuild,
+    startReplaceWild,
     cancelAction,
   };
 }

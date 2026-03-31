@@ -57,9 +57,11 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
     doDiscard,
     doOpen,
     doBuildOn,
+    doReplaceWild,
     doNextRound,
     doReorder,
     startBuild,
+    startReplaceWild,
     cancelAction,
   } = useGameState(gameId, initialState);
 
@@ -197,6 +199,7 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
                     openFlush={p.open_flush}
                     canBuild={iHaveOpened && isMyTurn && state.has_drawn}
                     onBuildClick={startBuild}
+                    onReplaceWildClick={startReplaceWild}
                   />
                 )}
               </div>
@@ -211,6 +214,7 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
             openFlush={myView.open_flush}
             canBuild={iHaveOpened && isMyTurn && state.has_drawn}
             onBuildClick={startBuild}
+            onReplaceWildClick={startReplaceWild}
           />
         )}
 
@@ -316,6 +320,24 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
                   className="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-sm font-medium disabled:opacity-40"
                 >
                   Confirm build
+                </button>
+                <button
+                  onClick={cancelAction}
+                  className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+
+            {pendingAction === 'replace_wild' && (
+              <>
+                <button
+                  onClick={doReplaceWild}
+                  disabled={selectedCards.length !== 1}
+                  className="px-4 py-2 rounded-lg bg-yellow-700 hover:bg-yellow-600 text-white text-sm font-medium disabled:opacity-40"
+                >
+                  Confirm replace wild
                 </button>
                 <button
                   onClick={cancelAction}
