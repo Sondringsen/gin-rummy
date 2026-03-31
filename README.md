@@ -27,11 +27,8 @@ gin-rummy/
 │       ├── api.ts          # Game API calls
 │       └── auth.ts         # JWT helpers
 ├── backend/
-│   ├── modules/            # Modules
-│   │   ├── models.py       # SQLAlchemy model
-│   │   ├── schema.py       # Pydantic schemas
-│   │   ├── service.py      # Database operations and business logic
-│   │   └── router.py       # Api Routes
+│   ├── auth/               # Auth module
+│   ├── game_logic/         # Game module
 │   ├── config.py           # Settings (reads from .env)
 │   ├── database.py         # SQLAlchemy engine and session
 │   └── main.py             # FastAPI app, mounts both routers
@@ -40,6 +37,8 @@ gin-rummy/
 ├── alembic.ini
 └── game/                   # Core game logic
 ```
+
+Each module under `backend/` follows the same structure: `models.py` (SQLAlchemy), `schema.py` (Pydantic), `service.py` (business logic), `router.py` (API routes).
 
 ## Getting Started
 

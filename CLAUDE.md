@@ -9,37 +9,33 @@
 
 ```
 backend/
-  auth/               — Auth microservice
-    models.py         — SQLAlchemy User model
-    schema.py         — Pydantic schemas (UserCreate, Token, LoginRequest, ...)
-    service.py        — Password hashing (pbkdf2_sha256), JWT creation, user CRUD
-    router.py         — POST /api/auth/register, POST /api/auth/login
-  game_logic/         — Game microservice
-    models.py         — SQLAlchemy models (placeholder, game state is in-memory)
-    schema.py         — Pydantic schemas (GameState, CardModel, ...)
-    service.py        — In-memory game state management
-    router.py         — All game API routes under /api/game
+  auth/               — Auth module
+  game_logic/         — Game module
   database.py         — SQLAlchemy engine, SessionLocal, Base, get_db dependency
   config.py           — Pydantic Settings class (reads from .env)
   main.py             — FastAPI app, mounts both routers
 frontend/
   app/
     page.tsx          — Home page (redirects to /login if not authenticated)
-    login/page.tsx    — Combined login/register page
+    login/            — Combined login/register page
     game/[gameId]/    — Game page
   lib/
     api.ts            — Game API calls
-    auth.ts           — JWT helpers (getToken, setToken, getAuthHeaders, ...)
+    auth.ts           — JWT helpers
     types.ts          — TypeScript types
 game/
   gin_rummy.py        — Core game logic
-alembic/
-  versions/           — Migration files
-  env.py              — Alembic config (uses Settings for DATABASE_URL)
-alembic.ini           — Alembic entry point
+alembic/              — Database migrations
+alembic.ini
 .env                  — Local environment variables (not committed)
-requirements.txt      — Python dependencies
+requirements.txt
 ```
+
+Each module under `backend/` follows the same structure:
+- `models.py` — SQLAlchemy models
+- `schema.py` — Pydantic schemas
+- `service.py` — Database operations and business logic
+- `router.py` — API routes
 
 ## Configuration
 
