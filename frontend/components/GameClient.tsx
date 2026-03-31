@@ -176,7 +176,8 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
             playerNum={perspective}
             openTress={myView.open_tress}
             openFlush={myView.open_flush}
-            canBuild={false}
+            canBuild={iHaveOpened && isMyTurn && state.has_drawn}
+            onBuildClick={startBuild}
           />
         )}
 

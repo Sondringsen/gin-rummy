@@ -30,9 +30,11 @@ export default function Card({ card, selected, onClick, small, disabled }: CardP
   const red = isRed(card.suit);
 
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled || !onClick}
+    <div
+      onClick={!disabled ? onClick : undefined}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick && !disabled ? 0 : undefined}
+      onKeyDown={onClick && !disabled ? (e) => e.key === 'Enter' && onClick() : undefined}
       className={`
         ${small ? 'w-8 h-12 text-[9px]' : 'w-14 h-20 text-sm'}
         rounded-lg border-2 font-bold
@@ -53,6 +55,6 @@ export default function Card({ card, selected, onClick, small, disabled }: CardP
       <span className={`self-end leading-none rotate-180 ${red ? 'text-red-600' : 'text-gray-900'} ${wild ? 'text-yellow-700' : ''}`}>
         {cardLabel(card)}
       </span>
-    </button>
+    </div>
   );
 }
