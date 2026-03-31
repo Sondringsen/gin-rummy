@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.router.game import router as game_router
+from backend.auth.router import router as auth_router
+from backend.game_logic.router import router as game_router
 
 app = FastAPI(title='Gin Rummy API')
 
@@ -12,4 +13,5 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
+app.include_router(auth_router, prefix='/api/auth', tags=['auth'])
 app.include_router(game_router, prefix='/api/game', tags=['game'])

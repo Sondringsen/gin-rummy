@@ -2,13 +2,83 @@
 
 ## Tech Stack
 - **Backend**: FastAPI with Pydantic, Python
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL with SQLAlchemy ORM and Alembic migrations
 - **Frontend**: Next.js 16 with TypeScript and Tailwind CSS v4
 
 ## Project Structure
-- `backend/` — FastAPI app with `models/` (Pydantic), `router/` (API routes), `service/` (business logic)
-- `frontend/` — Next.js app
-- `game/` — Core game logic (`gin_rummy.py`)
+
+```
+backend/
+  auth/               — Auth microservice
+    models.py         — SQLAlchemy User model
+    schema.py         — Pydantic schemas (UserCreate, Token, LoginRequest, ...)
+    service.py        — Password hashing (pbkdf2_sha256), JWT creation, user CRUD
+    router.py         — POST /api/auth/register, POST /api/auth/login
+  game_logic/         — Game microservice
+    models.py         — SQLAlchemy models (placeholder, game state is in-memory)
+    schema.py         — Pydantic schemas (GameState, CardModel, ...)
+    service.py        — In-memory game state management
+    router.py         — All game API routes under /api/game
+  database.py         — SQLAlchemy engine, SessionLocal, Base, get_db dependency
+  config.py           — Pydantic Settings class (reads from .env)
+  main.py             — FastAPI app, mounts both routers
+frontend/
+  app/
+    page.tsx          — Home page (redirects to /login if not authenticated)
+    login/page.tsx    — Combined login/register page
+    game/[gameId]/    — Game page
+  lib/
+    api.ts            — Game API calls
+    auth.ts           — JWT helpers (getToken, setToken, getAuthHeaders, ...)
+    types.ts          — TypeScript types
+game/
+  gin_rummy.py        — Core game logic
+alembic/
+  versions/           — Migration files
+  env.py              — Alembic config (uses Settings for DATABASE_URL)
+alembic.ini           — Alembic entry point
+.env                  — Local environment variables (not committed)
+requirements.txt      — Python dependencies
+```
+
+## Configuration
+
+All environment variables live in `.env` and are validated at startup via `backend/config.py` (`pydantic-settings`):
+
+| Variable                     | Description                        | Default  |
+|------------------------------|------------------------------------|----------|
+| `DATABASE_URL`               | PostgreSQL connection string       | required |
+| `SECRET_KEY`                 | JWT signing secret                 | required |
+| `ALGORITHM`                  | JWT algorithm                      | `HS256`  |
+| `ACCESS_TOKEN_EXPIRE_MINUTES`| Token lifetime in minutes          | `10080`  |
+
+## Database Migrations
+
+```bash
+# Apply all migrations
+alembic upgrade head
+
+# Create a new migration after changing a model
+alembic revision --autogenerate -m "description"
+```
+
+## Running the App
+
+```bash
+# Backend
+uvicorn backend.main:app --reload
+
+# Frontend
+cd frontend && npm run dev
+```
+
+## Auth Flow
+
+- `POST /api/auth/register` — creates a user and returns a JWT
+- `POST /api/auth/login` — verifies credentials and returns a JWT
+- JWT is stored in `localStorage` on the frontend and sent as `Authorization: Bearer <token>`
+
+---
 
 This app implements a card game called Gin Rummy. I am not sure the rules we usually play with are the commonly accepted rules found online so here is an overview of the rules and the flow of the game.
 
@@ -37,12 +107,12 @@ The score is calculated as follows:
 - Two of spades are worth 50 points.
 - Aces are worth 20 points.
 - Picture cards are worth 10 points.
-- Other cards are worht their face value.
+- Other cards are worth their face value.
 
-# Other rules
+## Other Rules
 - Two of spades can be used as any card (essentially a joker).
 - Aces can be used as both 1 and 14.
 - A player can draw the top card from the discarded deck of cards out of turn. This is penalized by having to draw a card from the deck of fresh cards.
-- In the final round a player most open with all the cards (no card can be discarded). This means that in the final round only one player is going to open.
+- In the final round a player must open with all the cards (no card can be discarded). This means that in the final round only one player is going to open.
 - You cannot draw from the cards that are discarded as the first i.e. when the players discard one of their 12 cards before the round begins.
 - If an opened build contains a two of spades (used as a joker), a player who has already opened can replace it with the card it represents and take the two of spades into their hand to use in further building.

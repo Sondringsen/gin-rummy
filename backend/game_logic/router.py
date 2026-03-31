@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
-from backend.models.game import (
+from backend.game_logic.schema import (
     CreateGameRequest, InitialDiscardRequest, DrawDiscardRequest,
     DiscardCardRequest, OpenHandRequest, BuildOnRequest, ReplaceWildRequest, ReorderRequest, GameState,
 )
-import backend.service.game as svc
+import backend.game_logic.service as svc
 
 router = APIRouter()
 
