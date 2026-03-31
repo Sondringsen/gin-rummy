@@ -1,4 +1,15 @@
 # Gin Rummy App
+
+## Tech Stack
+- **Backend**: FastAPI with Pydantic, Python
+- **Database**: PostgreSQL
+- **Frontend**: Next.js 16 with TypeScript and Tailwind CSS v4
+
+## Project Structure
+- `backend/` — FastAPI app with `models/` (Pydantic), `router/` (API routes), `service/` (business logic)
+- `frontend/` — Next.js app
+- `game/` — Core game logic (`gin_rummy.py`)
+
 This app implements a card game called Gin Rummy. I am not sure the rules we usually play with are the commonly accepted rules found online so here is an overview of the rules and the flow of the game.
 
 ## Definitions
