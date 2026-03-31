@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from backend.models.game import (
     CreateGameRequest, InitialDiscardRequest, DrawDiscardRequest,
-    DiscardCardRequest, OpenHandRequest, BuildOnRequest, ReorderRequest, GameState,
+    DiscardCardRequest, OpenHandRequest, BuildOnRequest, ReplaceWildRequest, ReorderRequest, GameState,
 )
 import backend.service.game as svc
 
@@ -61,6 +61,14 @@ def build_on(game_id: str, req: BuildOnRequest, player: int = Query(0)):
         svc.build_on, game_id, req.player_num, req.target_player,
         req.group_type, req.group_index,
         [c.model_dump() for c in req.cards], player,
+    )
+
+
+@router.post('/{game_id}/replace-wild', response_model=GameState)
+def replace_wild_in_build(game_id: str, req: ReplaceWildRequest, player: int = Query(0)):
+    return _wrap(
+        svc.replace_wild_in_build, game_id, req.player_num, req.target_player,
+        req.group_type, req.group_index, req.card.model_dump(), player,
     )
 
 

@@ -37,6 +37,14 @@ class BuildOnRequest(BaseModel):
     cards: List[CardModel]
 
 
+class ReplaceWildRequest(BaseModel):
+    player_num: int
+    target_player: int
+    group_type: Literal['tress', 'flush']
+    group_index: int
+    card: CardModel
+
+
 class PlayerView(BaseModel):
     player_num: int
     card_count: int

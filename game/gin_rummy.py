@@ -366,6 +366,44 @@ class GinRummy:
 
         self._check_round_over()
 
+    def replace_wild_in_build(self, player_num: int, target_player: int, group_type: Literal['tress', 'flush'], group_index: int, card: dict):
+        """
+        Replace a wild (2♠) in an opened group with the actual card it represents.
+        The wild is returned to the player's hand.
+        """
+        if not self.has_opened[player_num]:
+            raise ValueError(f'Player {player_num} has not opened yet.')
+        if not self.has_opened[target_player]:
+            raise ValueError(f'Player {target_player} has not opened yet.')
+        if player_num != self.player_turn:
+            raise ValueError('Can only replace wild on your own turn.')
+        if not self.has_drawn:
+            raise ValueError('Must draw before replacing wild.')
+
+        groups = self.open_cards[target_player][group_type]
+        if group_index < 0 or group_index >= len(groups):
+            raise ValueError(f'Invalid group index {group_index}.')
+
+        group = list(groups[group_index])
+        wild = Card('S', 2)
+        if wild not in group:
+            raise ValueError('No wild card in that group.')
+
+        replacement = Card(card['suit'], card['value'])
+        hand = self.player_cards[player_num]
+        if replacement not in hand:
+            raise ValueError(f'Player {player_num} does not have {replacement}.')
+
+        idx = group.index(wild)
+        new_group = group[:idx] + [replacement] + group[idx + 1:]
+        validator = _is_valid_tress if group_type == 'tress' else _is_valid_flush
+        if not validator(new_group):
+            raise ValueError(f'Replacing wild does not produce a valid {group_type}.')
+
+        groups[group_index] = new_group
+        hand.remove(replacement)
+        hand.append(wild)
+
     # ------------------------------------------------------------------
     # Round / game end
     # ------------------------------------------------------------------

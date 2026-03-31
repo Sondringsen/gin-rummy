@@ -77,6 +77,12 @@ def build_on(game_id: str, player_num: int, target_player: int, group_type: str,
     return _state(game, game_id, perspective_player)
 
 
+def replace_wild_in_build(game_id: str, player_num: int, target_player: int, group_type: str, group_index: int, card: dict, perspective_player: int) -> dict:
+    game = _get(game_id)
+    game.replace_wild_in_build(player_num, target_player, group_type, group_index, card)
+    return _state(game, game_id, perspective_player)
+
+
 def next_round(game_id: str, perspective_player: int) -> dict:
     game = _get(game_id)
     if not game.round_over:
