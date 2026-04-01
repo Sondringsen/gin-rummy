@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from jose import jwt, JWTError
+from sqlalchemy.orm import Session
+
 from backend.auth.dependencies import get_current_user
 from backend.auth.models import User
+from backend.database import get_db
+from backend.config import get_settings
 from backend.game_logic.schema import (
     CreateGameRequest, InviteRequest, InitialDiscardRequest, DrawDiscardRequest,
     DiscardCardRequest, OpenHandRequest, BuildOnRequest, ReplaceWildRequest,
     ReorderRequest, GameState, LobbyState,
 )
+from backend.game_logic.ws import manager
 import backend.game_logic.service as svc
 
 router = APIRouter()
@@ -31,6 +37,18 @@ def _wrap_lobby(fn, *args, **kwargs) -> LobbyState:
         raise HTTPException(status_code=400, detail=str(e))
 
 
+def _get_user_from_token(token: str, db: Session) -> User | None:
+    settings = get_settings()
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        user_id: str = payload.get("sub")
+    except JWTError:
+        return None
+    return db.query(User).filter(User.id == user_id).first()
+
+
+# ---- Lobby endpoints ----
+
 @router.post('/', response_model=LobbyState)
 def create_game(req: CreateGameRequest, me: User = Depends(get_current_user)):
     return _wrap_lobby(svc.create_game, req.n_players, me.username)
@@ -47,69 +65,149 @@ def get_lobby(game_id: str, me: User = Depends(get_current_user)):
 
 
 @router.post('/{game_id}/invite', response_model=LobbyState)
-def invite_player(game_id: str, req: InviteRequest, me: User = Depends(get_current_user)):
-    return _wrap_lobby(svc.invite_player, game_id, me.username, req.username)
+async def invite_player(game_id: str, req: InviteRequest, me: User = Depends(get_current_user)):
+    lobby = _wrap_lobby(svc.invite_player, game_id, me.username, req.username)
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_lobby(game_id, meta)
+    return lobby
 
 
 @router.post('/{game_id}/join', response_model=LobbyState)
-def join_game(game_id: str, me: User = Depends(get_current_user)):
-    return _wrap_lobby(svc.join_game, game_id, me.username)
+async def join_game(game_id: str, me: User = Depends(get_current_user)):
+    lobby = _wrap_lobby(svc.join_game, game_id, me.username)
+    meta = svc._games.get(game_id)
+    if meta:
+        if meta.started:
+            await manager.broadcast_game(game_id, meta)
+        else:
+            await manager.broadcast_lobby(game_id, meta)
+    return lobby
 
+
+# ---- Game state ----
 
 @router.get('/{game_id}/state', response_model=GameState)
 def get_state(game_id: str, me: User = Depends(get_current_user)):
     return _wrap_game(svc.get_state, game_id, me.username)
 
 
+# ---- Game actions ----
+
 @router.post('/{game_id}/initial-discard', response_model=GameState)
-def initial_discard(game_id: str, req: InitialDiscardRequest, me: User = Depends(get_current_user)):
-    return _wrap_game(svc.initial_discard, game_id, me.username, req.card.model_dump())
+async def initial_discard(game_id: str, req: InitialDiscardRequest, me: User = Depends(get_current_user)):
+    state = _wrap_game(svc.initial_discard, game_id, me.username, req.card.model_dump())
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_game(game_id, meta)
+    return state
 
 
 @router.post('/{game_id}/draw/deck', response_model=GameState)
-def draw_from_deck(game_id: str, me: User = Depends(get_current_user)):
-    return _wrap_game(svc.draw_from_deck, game_id, me.username)
+async def draw_from_deck(game_id: str, me: User = Depends(get_current_user)):
+    state = _wrap_game(svc.draw_from_deck, game_id, me.username)
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_game(game_id, meta)
+    return state
 
 
 @router.post('/{game_id}/draw/discard', response_model=GameState)
-def draw_from_discard(game_id: str, req: DrawDiscardRequest, me: User = Depends(get_current_user)):
-    return _wrap_game(svc.draw_from_discard, game_id, req.player_num, me.username)
+async def draw_from_discard(game_id: str, req: DrawDiscardRequest, me: User = Depends(get_current_user)):
+    state = _wrap_game(svc.draw_from_discard, game_id, req.player_num, me.username)
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_game(game_id, meta)
+    return state
 
 
 @router.post('/{game_id}/discard', response_model=GameState)
-def discard_card(game_id: str, req: DiscardCardRequest, me: User = Depends(get_current_user)):
-    return _wrap_game(svc.discard_card, game_id, me.username, req.card.model_dump())
+async def discard_card(game_id: str, req: DiscardCardRequest, me: User = Depends(get_current_user)):
+    state = _wrap_game(svc.discard_card, game_id, me.username, req.card.model_dump())
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_game(game_id, meta)
+    return state
 
 
 @router.post('/{game_id}/open', response_model=GameState)
-def open_hand(game_id: str, req: OpenHandRequest, me: User = Depends(get_current_user)):
+async def open_hand(game_id: str, req: OpenHandRequest, me: User = Depends(get_current_user)):
     tress = [[c.model_dump() for c in g] for g in req.tress_groups]
     flush = [[c.model_dump() for c in g] for g in req.flush_groups]
-    return _wrap_game(svc.open_hand, game_id, me.username, tress, flush)
+    state = _wrap_game(svc.open_hand, game_id, me.username, tress, flush)
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_game(game_id, meta)
+    return state
 
 
 @router.post('/{game_id}/build', response_model=GameState)
-def build_on(game_id: str, req: BuildOnRequest, me: User = Depends(get_current_user)):
-    return _wrap_game(
+async def build_on(game_id: str, req: BuildOnRequest, me: User = Depends(get_current_user)):
+    state = _wrap_game(
         svc.build_on, game_id, me.username,
         req.target_player, req.group_type, req.group_index,
         [c.model_dump() for c in req.cards],
     )
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_game(game_id, meta)
+    return state
 
 
 @router.post('/{game_id}/replace-wild', response_model=GameState)
-def replace_wild_in_build(game_id: str, req: ReplaceWildRequest, me: User = Depends(get_current_user)):
-    return _wrap_game(
+async def replace_wild_in_build(game_id: str, req: ReplaceWildRequest, me: User = Depends(get_current_user)):
+    state = _wrap_game(
         svc.replace_wild_in_build, game_id, me.username,
         req.target_player, req.group_type, req.group_index, req.card.model_dump(),
     )
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_game(game_id, meta)
+    return state
 
 
 @router.post('/{game_id}/next-round', response_model=GameState)
-def next_round(game_id: str, me: User = Depends(get_current_user)):
-    return _wrap_game(svc.next_round, game_id, me.username)
+async def next_round(game_id: str, me: User = Depends(get_current_user)):
+    state = _wrap_game(svc.next_round, game_id, me.username)
+    meta = svc._games.get(game_id)
+    if meta:
+        await manager.broadcast_game(game_id, meta)
+    return state
 
 
 @router.post('/{game_id}/reorder', response_model=GameState)
 def reorder_cards(game_id: str, req: ReorderRequest, me: User = Depends(get_current_user)):
+    # Reorder is local to this player only — no broadcast needed
     return _wrap_game(svc.reorder_cards, game_id, me.username, req.card_order)
+
+
+# ---- WebSocket ----
+
+@router.websocket('/{game_id}/ws')
+async def game_websocket(
+    game_id: str,
+    websocket: WebSocket,
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    user = _get_user_from_token(token, db)
+    if user is None:
+        await websocket.close(code=4001)
+        return
+
+    await manager.connect(game_id, websocket, user.username)
+
+    # Send current state immediately on connect
+    meta = svc._games.get(game_id)
+    if meta:
+        if meta.started:
+            await manager.broadcast_game(game_id, meta)
+        else:
+            await manager.broadcast_lobby(game_id, meta)
+
+    try:
+        while True:
+            # Keep the connection alive; client may send pings as plain text
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(game_id, websocket)

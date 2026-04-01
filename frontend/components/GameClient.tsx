@@ -9,6 +9,7 @@ import OpenCards from './OpenCards';
 import GroupSelector from './GroupSelector';
 import ScoreBoard from './ScoreBoard';
 import * as api from '@/lib/api';
+import { getToken } from '@/lib/auth';
 
 type SortMode = 'none' | 'value' | 'suit';
 
@@ -47,25 +48,25 @@ function LobbyScreen({ gameId, initialLobby, onGameStarted }: LobbyScreenProps) 
   const [inviteLoading, setInviteLoading] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function poll() {
-      try {
-        const l = await api.getLobby(gameId);
-        if (cancelled) return;
-        setLobby(l);
-        if (l.started) {
-          const s = await api.getState(gameId);
-          if (!cancelled) onGameStarted(s);
+    const token = getToken();
+    if (!token) return;
+    const ws = new WebSocket(`ws://localhost:8000/api/game/${gameId}/ws?token=${token}`);
+    ws.onmessage = async (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'lobby') {
+        setLobby(msg.data);
+        if (msg.data.started) {
+          // Lobby says game started but we have no game state yet — fetch it once
+          try {
+            const s = await api.getState(gameId);
+            onGameStarted(s);
+          } catch { /* ignore */ }
         }
-      } catch { /* ignore transient errors */ }
-    }
-
-    const id = setInterval(poll, 2000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
+      } else if (msg.type === 'game') {
+        onGameStarted(msg.data);
+      }
     };
+    return () => ws.close();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
 
@@ -187,7 +188,7 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
     flushGroups,
     setFlushGroups,
     error,
-    refresh,
+    updateState,
     toggleCard,
     doInitialDiscard,
     doDrawFromDeck,
@@ -203,11 +204,17 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
     cancelAction,
   } = useGameState(gameId, initialState);
 
-  // Poll for state updates so all players see moves in real time
+  // WebSocket: receive pushed state from server instead of polling
   useEffect(() => {
-    const id = setInterval(() => { refresh(); }, 3000);
-    return () => clearInterval(id);
-  }, [refresh]);
+    const token = getToken();
+    if (!token) return;
+    const ws = new WebSocket(`ws://localhost:8000/api/game/${gameId}/ws?token=${token}`);
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'game') updateState(msg.data);
+    };
+    return () => ws.close();
+  }, [gameId, updateState]);
 
   const myView = state.players[perspective];
   const isMyTurn = state.player_turn === perspective;

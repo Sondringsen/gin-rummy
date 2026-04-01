@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from game.gin_rummy import GinRummy
 
 INVITATION_TTL = timedelta(minutes=5)
+GAME_TTL = timedelta(days=1)
 
 
 @dataclass
@@ -21,6 +22,8 @@ class GameMeta:
     # username -> invited_at timestamp
     invited: Dict[str, datetime] = field(default_factory=dict)
     started: bool = False
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 _games: Dict[str, GameMeta] = {}
@@ -30,7 +33,14 @@ def _get(game_id: str) -> GameMeta:
     meta = _games.get(game_id)
     if meta is None:
         raise KeyError(f'Game {game_id!r} not found.')
+    if datetime.now(timezone.utc) - meta.last_activity > GAME_TTL:
+        del _games[game_id]
+        raise KeyError(f'Game {game_id!r} has expired after 1 day of inactivity.')
     return meta
+
+
+def _touch(meta: GameMeta) -> None:
+    meta.last_activity = datetime.now(timezone.utc)
 
 
 def _state(meta: GameMeta, game_id: str, perspective_player: int) -> dict:
@@ -89,6 +99,7 @@ def invite_player(game_id: str, inviter_username: str, invitee_username: str) ->
     if len([s for s in meta.slots if s is not None]) + len(meta.invited) >= meta.n_players:
         raise ValueError('Game is already full.')
     meta.invited[invitee_username] = datetime.now(timezone.utc)
+    _touch(meta)
     return _lobby_state(meta, game_id)
 
 
@@ -108,6 +119,7 @@ def join_game(game_id: str, username: str) -> dict:
         raise ValueError('No empty slots available.')
     meta.slots[empty] = username
     del meta.invited[username]
+    _touch(meta)
     # Auto-start when all slots are filled
     if all(s is not None for s in meta.slots):
         meta.game.new_round()
@@ -149,6 +161,7 @@ def initial_discard(game_id: str, username: str, card: dict) -> dict:
     meta = _get(game_id)
     player_num = _player_num_for(meta, username)
     meta.game.initial_discard(player_num, card)
+    _touch(meta)
     return _state(meta, game_id, player_num)
 
 
@@ -156,6 +169,7 @@ def draw_from_deck(game_id: str, username: str) -> dict:
     meta = _get(game_id)
     player_num = _player_num_for(meta, username)
     meta.game.draw_from_deck()
+    _touch(meta)
     return _state(meta, game_id, player_num)
 
 
@@ -163,6 +177,7 @@ def draw_from_discard(game_id: str, drawing_player_num: int, username: str) -> d
     meta = _get(game_id)
     player_num = _player_num_for(meta, username)
     meta.game.draw_from_discard(drawing_player_num)
+    _touch(meta)
     return _state(meta, game_id, player_num)
 
 
@@ -170,6 +185,7 @@ def discard_card(game_id: str, username: str, card: dict) -> dict:
     meta = _get(game_id)
     player_num = _player_num_for(meta, username)
     meta.game.discard_card(card)
+    _touch(meta)
     return _state(meta, game_id, player_num)
 
 
@@ -177,6 +193,7 @@ def reorder_cards(game_id: str, username: str, card_order: List[int]) -> dict:
     meta = _get(game_id)
     player_num = _player_num_for(meta, username)
     meta.game.reorder_cards(player_num, card_order)
+    # reorder doesn't count as game activity for timeout purposes
     return _state(meta, game_id, player_num)
 
 
@@ -184,6 +201,7 @@ def open_hand(game_id: str, username: str, tress_groups: List[List[dict]], flush
     meta = _get(game_id)
     player_num = _player_num_for(meta, username)
     meta.game.open_hand(tress_groups, flush_groups)
+    _touch(meta)
     return _state(meta, game_id, player_num)
 
 
@@ -191,6 +209,7 @@ def build_on(game_id: str, username: str, target_player: int, group_type: str, g
     meta = _get(game_id)
     player_num = _player_num_for(meta, username)
     meta.game.build_on(player_num, target_player, group_type, group_index, cards)
+    _touch(meta)
     return _state(meta, game_id, player_num)
 
 
@@ -198,6 +217,7 @@ def replace_wild_in_build(game_id: str, username: str, target_player: int, group
     meta = _get(game_id)
     player_num = _player_num_for(meta, username)
     meta.game.replace_wild_in_build(player_num, target_player, group_type, group_index, card)
+    _touch(meta)
     return _state(meta, game_id, player_num)
 
 
@@ -207,4 +227,5 @@ def next_round(game_id: str, username: str) -> dict:
     if not meta.game.round_over:
         raise ValueError('Round is not over yet.')
     meta.game.new_round()
+    _touch(meta)
     return _state(meta, game_id, player_num)

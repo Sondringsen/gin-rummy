@@ -25,11 +25,10 @@ export function useGameState(gameId: string, initialState: GameState) {
   // perspective_player is now derived from the server — it's who the logged-in user is
   const perspective = state.perspective_player;
 
-  const refresh = useCallback(async () => {
-    const s = await api.getState(gameId);
+  // Called by the WebSocket listener in GameClient when a push arrives
+  const updateState = useCallback((s: GameState) => {
     setState(s);
-    setSelectedCards([]);
-  }, [gameId]);
+  }, []);
 
   const toggleCard = useCallback((card: CardModel) => {
     setSelectedCards((prev) => {
@@ -210,7 +209,7 @@ export function useGameState(gameId: string, initialState: GameState) {
     setFlushGroups,
     error,
     setError,
-    refresh,
+    updateState,
     toggleCard,
     doInitialDiscard,
     doDrawFromDeck,
