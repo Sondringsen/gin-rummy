@@ -11,8 +11,11 @@ class CreateGameRequest(BaseModel):
     n_players: int = 2
 
 
+class InviteRequest(BaseModel):
+    username: str
+
+
 class InitialDiscardRequest(BaseModel):
-    player_num: int
     card: CardModel
 
 
@@ -30,7 +33,6 @@ class OpenHandRequest(BaseModel):
 
 
 class BuildOnRequest(BaseModel):
-    player_num: int
     target_player: int
     group_type: Literal['tress', 'flush']
     group_index: int
@@ -38,26 +40,39 @@ class BuildOnRequest(BaseModel):
 
 
 class ReplaceWildRequest(BaseModel):
-    player_num: int
     target_player: int
     group_type: Literal['tress', 'flush']
     group_index: int
     card: CardModel
 
 
+class ReorderRequest(BaseModel):
+    card_order: List[int]
+
+
+class PlayerSlot(BaseModel):
+    player_num: int
+    username: Optional[str] = None
+
+
+class LobbyState(BaseModel):
+    game_id: str
+    n_players: int
+    creator: str
+    slots: List[PlayerSlot]
+    invited: List[str]
+    started: bool
+
+
 class PlayerView(BaseModel):
     player_num: int
+    username: Optional[str] = None
     card_count: int
     cards: Optional[List[CardModel]] = None  # None = hidden
     open_tress: List[List[CardModel]]
     open_flush: List[List[CardModel]]
     has_opened: bool
     score: int
-
-
-class ReorderRequest(BaseModel):
-    player_num: int
-    card_order: List[int]
 
 
 class RoundRequirements(BaseModel):

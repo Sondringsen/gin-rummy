@@ -8,6 +8,7 @@ export interface CardModel {
 
 export interface PlayerView {
   player_num: number;
+  username: string | null;
   card_count: number;
   cards: CardModel[] | null; // null = hidden (other player)
   open_tress: CardModel[][];
@@ -37,4 +38,18 @@ export interface GameState {
   scores: number[];
   n_players: number;
   round_requirements: RoundRequirements;
+}
+
+export interface PlayerSlot {
+  player_num: number;
+  username: string | null;
+}
+
+export interface LobbyState {
+  game_id: string;
+  n_players: number;
+  creator: string;
+  slots: PlayerSlot[];
+  invited: string[];
+  started: boolean;
 }

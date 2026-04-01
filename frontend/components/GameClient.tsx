@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { CardModel, GameState } from '@/lib/types';
+import { useEffect, useState, useCallback } from 'react';
+import { CardModel, GameState, LobbyState } from '@/lib/types';
 import { useGameState } from '@/hooks/useGameState';
 import Card from './Card';
 import Hand from './Hand';
 import OpenCards from './OpenCards';
 import GroupSelector from './GroupSelector';
 import ScoreBoard from './ScoreBoard';
-import PlayerSwitcher from './PlayerSwitcher';
+import * as api from '@/lib/api';
 
 type SortMode = 'none' | 'value' | 'suit';
 
@@ -32,12 +32,150 @@ function saveSortMode(playerNum: number, mode: SortMode) {
   try { localStorage.setItem(`gin-rummy-sort-p${playerNum}`, mode); } catch { /* ignore */ }
 }
 
-interface GameClientProps {
+// ---- Lobby waiting screen ----
+
+interface LobbyScreenProps {
   gameId: string;
-  initialState: GameState;
+  initialLobby: LobbyState;
+  onGameStarted: (state: GameState) => void;
 }
 
-export default function GameClient({ gameId, initialState }: GameClientProps) {
+function LobbyScreen({ gameId, initialLobby, onGameStarted }: LobbyScreenProps) {
+  const [lobby, setLobby] = useState<LobbyState>(initialLobby);
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const l = await api.getLobby(gameId);
+        if (cancelled) return;
+        setLobby(l);
+        if (l.started) {
+          const s = await api.getState(gameId);
+          if (!cancelled) onGameStarted(s);
+        }
+      } catch { /* ignore transient errors */ }
+    }
+
+    const id = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId]);
+
+  async function handleInvite() {
+    if (!inviteUsername.trim()) return;
+    setInviteLoading(true);
+    setInviteError(null);
+    try {
+      const l = await api.invitePlayer(gameId, inviteUsername.trim());
+      setLobby(l);
+      setInviteUsername('');
+    } catch (e: unknown) {
+      setInviteError(e instanceof Error ? e.message : 'Failed to invite');
+    } finally {
+      setInviteLoading(false);
+    }
+  }
+
+  const filledSlots = lobby.slots.filter((s) => s.username !== null).length;
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-8">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 p-8 w-full max-w-md flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold">Waiting for players</h1>
+          <p className="text-gray-400 text-sm mt-1">
+            {filledSlots}/{lobby.n_players} players joined
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {lobby.slots.map((slot) => (
+            <div key={slot.player_num} className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-2">
+              <span className="text-gray-400 text-sm w-16">Player {slot.player_num + 1}</span>
+              {slot.username ? (
+                <span className="text-green-400 font-medium">{slot.username}</span>
+              ) : (
+                <span className="text-gray-500 italic text-sm">Empty</span>
+              )}
+            </div>
+          ))}
+          {lobby.invited.length > 0 && (
+            <div className="mt-2">
+              <p className="text-xs text-gray-500 mb-1">Invited (pending):</p>
+              {lobby.invited.map((u) => (
+                <div key={u} className="flex items-center gap-2 text-sm text-yellow-400 px-4 py-1">
+                  <span>⏳</span>
+                  <span>{u}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-sm text-gray-400">Invite a player by username</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={inviteUsername}
+              onChange={(e) => setInviteUsername(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
+              placeholder="username"
+              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={handleInvite}
+              disabled={inviteLoading || !inviteUsername.trim()}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Invite
+            </button>
+          </div>
+          {inviteError && <p className="text-red-400 text-xs">{inviteError}</p>}
+        </div>
+
+        <p className="text-xs text-gray-500 text-center">
+          Game will start automatically when all {lobby.n_players} players have joined.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---- Main game props ----
+
+interface GameClientProps {
+  gameId: string;
+  initialState: GameState | null;
+  lobbyState: LobbyState | null;
+}
+
+export default function GameClient({ gameId, initialState, lobbyState }: GameClientProps) {
+  const [gameState, setGameState] = useState<GameState | null>(initialState);
+
+  const handleGameStarted = useCallback((s: GameState) => {
+    setGameState(s);
+  }, []);
+
+  if (!gameState) {
+    if (!lobbyState) return null;
+    return <LobbyScreen gameId={gameId} initialLobby={lobbyState} onGameStarted={handleGameStarted} />;
+  }
+
+  return <ActiveGame gameId={gameId} initialState={gameState} />;
+}
+
+// ---- Active game ----
+
+function ActiveGame({ gameId, initialState }: { gameId: string; initialState: GameState }) {
   const {
     state,
     perspective,
@@ -49,7 +187,7 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
     flushGroups,
     setFlushGroups,
     error,
-    switchPerspective,
+    refresh,
     toggleCard,
     doInitialDiscard,
     doDrawFromDeck,
@@ -65,19 +203,28 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
     cancelAction,
   } = useGameState(gameId, initialState);
 
+  // Poll for state updates so all players see moves in real time
+  useEffect(() => {
+    const id = setInterval(() => { refresh(); }, 3000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
   const myView = state.players[perspective];
   const isMyTurn = state.player_turn === perspective;
   const iHaveOpened = myView?.has_opened ?? false;
   const myCards = myView?.cards ?? [];
 
-  // Sort mode is per-player UI preference only (persisted in localStorage); actual order lives in backend
   const [sortMode, setSortMode] = useState<SortMode>(() => loadSortMode(perspective));
-  useEffect(() => { setSortMode(loadSortMode(perspective)); }, [perspective]);
 
   function handleSort(mode: SortMode) {
     saveSortMode(perspective, mode);
     setSortMode(mode);
     doReorder(applySort(myCards, mode));
+  }
+
+  function playerLabel(playerNum: number) {
+    const pv = state.players[playerNum];
+    return pv?.username ?? `Player ${playerNum + 1}`;
   }
 
   // ---- Game over screen ----
@@ -87,11 +234,11 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center gap-6 p-8">
         <h1 className="text-4xl font-bold">Game Over</h1>
-        <p className="text-xl text-green-400">Player {winner + 1} wins!</p>
+        <p className="text-xl text-green-400">{playerLabel(winner)} wins!</p>
         <div className="flex gap-8">
           {state.scores.map((s, i) => (
             <div key={i} className="flex flex-col items-center">
-              <span className="text-gray-400">Player {i + 1}</span>
+              <span className="text-gray-400">{playerLabel(i)}</span>
               <span className={`text-3xl font-bold ${s === minScore ? 'text-green-400' : 'text-white'}`}>{s}</span>
             </div>
           ))}
@@ -111,7 +258,7 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
         <div className="flex gap-8">
           {state.scores.map((s, i) => (
             <div key={i} className="flex flex-col items-center">
-              <span className="text-gray-400">Player {i + 1}</span>
+              <span className="text-gray-400">{playerLabel(i)}</span>
               <span className="text-3xl font-bold text-white">{s}</span>
             </div>
           ))}
@@ -148,9 +295,10 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
         </div>
         <ScoreBoard scores={state.scores} round={state.round} nPlayers={state.n_players} />
         <div className="text-right text-sm">
-          <p className="text-gray-400">Viewing as</p>
-          <p className="font-semibold text-yellow-400">Player {perspective + 1}</p>
-          <p className="text-xs text-gray-500">Turn: P{state.player_turn + 1}</p>
+          <p className="font-semibold text-yellow-400">{myView?.username ?? `Player ${perspective + 1}`}</p>
+          <p className="text-xs text-gray-500">
+            {isMyTurn ? 'Your turn' : `${playerLabel(state.player_turn)}'s turn`}
+          </p>
         </div>
       </header>
 
@@ -158,7 +306,6 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
       {error && (
         <div className="bg-red-900/60 border border-red-700 text-red-200 text-sm px-4 py-2 flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => {}} className="ml-4 text-red-300 hover:text-white font-bold">✕</button>
         </div>
       )}
 
@@ -179,10 +326,11 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
               <div key={p.player_num} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <span className={`text-sm font-medium ${state.player_turn === p.player_num ? 'text-green-400' : 'text-gray-400'}`}>
-                    Player {p.player_num + 1} {state.player_turn === p.player_num ? '(their turn)' : ''}
+                    {p.username ?? `Player ${p.player_num + 1}`}
+                    {state.player_turn === p.player_num ? ' (their turn)' : ''}
                   </span>
                   <span className="text-xs text-gray-500">{p.card_count} cards</span>
-                  {canDrawDiscard && p.player_num !== perspective && (
+                  {canDrawDiscard && (
                     <button
                       onClick={() => doDrawFromDiscard(p.player_num)}
                       className="text-xs px-2 py-0.5 rounded bg-orange-700 hover:bg-orange-600 text-white"
@@ -278,7 +426,7 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
             selectedCards={selectedCards}
             onCardClick={toggleCard}
             onReorder={(cards) => { saveSortMode(perspective, 'none'); setSortMode('none'); doReorder(cards); }}
-            label={`Player ${perspective + 1} (you)`}
+            label={myView?.username ?? `Player ${perspective + 1}`}
           />
 
           {/* Action buttons */}
@@ -364,12 +512,6 @@ export default function GameClient({ gameId, initialState }: GameClientProps) {
           onCancel={cancelAction}
         />
       )}
-
-      <PlayerSwitcher
-        nPlayers={state.n_players}
-        perspective={perspective}
-        onSwitch={switchPerspective}
-      />
     </div>
   );
 }

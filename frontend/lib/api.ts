@@ -1,9 +1,16 @@
-import { CardModel, GameState } from './types';
+import { CardModel, GameState, LobbyState } from './types';
+import { getAuthHeaders } from './auth';
 
 const BASE = 'http://localhost:8000/api/game';
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options);
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...getAuthHeaders(),
+      ...(options?.headers ?? {}),
+    },
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail ?? 'Request failed');
@@ -11,44 +18,60 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-function stateUrl(gameId: string, player: number) {
-  return `${BASE}/${gameId}/state?player=${player}`;
-}
-
-export async function createGame(nPlayers: number): Promise<GameState> {
-  return request<GameState>(`${BASE}/`, {
+export async function createGame(nPlayers: number): Promise<LobbyState> {
+  return request<LobbyState>(`${BASE}/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ n_players: nPlayers }),
   });
 }
 
-export async function getState(gameId: string, player: number): Promise<GameState> {
-  return request<GameState>(stateUrl(gameId, player));
+export async function getLobby(gameId: string): Promise<LobbyState> {
+  return request<LobbyState>(`${BASE}/${gameId}/lobby`);
 }
 
-export async function initialDiscard(gameId: string, playerNum: number, card: CardModel, perspective: number): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/initial-discard?player=${perspective}`, {
+export async function invitePlayer(gameId: string, username: string): Promise<LobbyState> {
+  return request<LobbyState>(`${BASE}/${gameId}/invite`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ player_num: playerNum, card }),
+    body: JSON.stringify({ username }),
   });
 }
 
-export async function drawFromDeck(gameId: string, perspective: number): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/draw/deck?player=${perspective}`, { method: 'POST' });
+export async function joinGame(gameId: string): Promise<LobbyState> {
+  return request<LobbyState>(`${BASE}/${gameId}/join`, { method: 'POST' });
 }
 
-export async function drawFromDiscard(gameId: string, playerNum: number, perspective: number): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/draw/discard?player=${perspective}`, {
+export async function getPendingInvitations(): Promise<LobbyState[]> {
+  return request<LobbyState[]>(`${BASE}/invitations`);
+}
+
+export async function getState(gameId: string): Promise<GameState> {
+  return request<GameState>(`${BASE}/${gameId}/state`);
+}
+
+export async function initialDiscard(gameId: string, card: CardModel): Promise<GameState> {
+  return request<GameState>(`${BASE}/${gameId}/initial-discard`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card }),
+  });
+}
+
+export async function drawFromDeck(gameId: string): Promise<GameState> {
+  return request<GameState>(`${BASE}/${gameId}/draw/deck`, { method: 'POST' });
+}
+
+export async function drawFromDiscard(gameId: string, playerNum: number): Promise<GameState> {
+  return request<GameState>(`${BASE}/${gameId}/draw/discard`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ player_num: playerNum }),
   });
 }
 
-export async function discardCard(gameId: string, card: CardModel, perspective: number): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/discard?player=${perspective}`, {
+export async function discardCard(gameId: string, card: CardModel): Promise<GameState> {
+  return request<GameState>(`${BASE}/${gameId}/discard`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ card }),
@@ -59,9 +82,8 @@ export async function openHand(
   gameId: string,
   tressGroups: CardModel[][],
   flushGroups: CardModel[][],
-  perspective: number,
 ): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/open?player=${perspective}`, {
+  return request<GameState>(`${BASE}/${gameId}/open`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tress_groups: tressGroups, flush_groups: flushGroups }),
@@ -70,49 +92,43 @@ export async function openHand(
 
 export async function buildOn(
   gameId: string,
-  playerNum: number,
   targetPlayer: number,
   groupType: 'tress' | 'flush',
   groupIndex: number,
   cards: CardModel[],
-  perspective: number,
 ): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/build?player=${perspective}`, {
+  return request<GameState>(`${BASE}/${gameId}/build`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ player_num: playerNum, target_player: targetPlayer, group_type: groupType, group_index: groupIndex, cards }),
+    body: JSON.stringify({ target_player: targetPlayer, group_type: groupType, group_index: groupIndex, cards }),
   });
 }
 
 export async function replaceWild(
   gameId: string,
-  playerNum: number,
   targetPlayer: number,
   groupType: 'tress' | 'flush',
   groupIndex: number,
   card: CardModel,
-  perspective: number,
 ): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/replace-wild?player=${perspective}`, {
+  return request<GameState>(`${BASE}/${gameId}/replace-wild`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ player_num: playerNum, target_player: targetPlayer, group_type: groupType, group_index: groupIndex, card }),
+    body: JSON.stringify({ target_player: targetPlayer, group_type: groupType, group_index: groupIndex, card }),
   });
 }
 
-export async function nextRound(gameId: string, perspective: number): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/next-round?player=${perspective}`, { method: 'POST' });
+export async function nextRound(gameId: string): Promise<GameState> {
+  return request<GameState>(`${BASE}/${gameId}/next-round`, { method: 'POST' });
 }
 
 export async function reorderCards(
   gameId: string,
-  playerNum: number,
   cardOrder: number[],
-  perspective: number,
 ): Promise<GameState> {
-  return request<GameState>(`${BASE}/${gameId}/reorder?player=${perspective}`, {
+  return request<GameState>(`${BASE}/${gameId}/reorder`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ player_num: playerNum, card_order: cardOrder }),
+    body: JSON.stringify({ card_order: cardOrder }),
   });
 }
