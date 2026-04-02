@@ -125,11 +125,18 @@ sudo systemctl start gin-rummy-frontend
 
 ```bash
 git pull
-source .venv/bin/activate && pip install -r requirements.txt
-alembic upgrade head
-sudo systemctl restart gin-rummy-backend
-cd frontend && npm run build && cd .. && sudo systemctl restart gin-rummy-frontend
 ```
+
+Then restart only what changed:
+
+| Changed | Command |
+|---------|---------|
+| Backend code | `sudo systemctl restart gin-rummy-backend` |
+| Database models | `alembic upgrade head` |
+| Frontend code | `cd frontend && npm run build && cd .. && sudo systemctl restart gin-rummy-frontend` |
+| Dependencies | `source .venv/bin/activate && pip install -r requirements.txt`, then restart backend |
+
+Each service restarts independently — restarting the backend does not affect the frontend.
 
 ### Logs
 
