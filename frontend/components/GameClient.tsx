@@ -9,6 +9,7 @@ import Hand from './Hand';
 import OpenCards from './OpenCards';
 import GroupSelector from './GroupSelector';
 import ScoreBoard from './ScoreBoard';
+import RulesModal from './RulesModal';
 import * as api from '@/lib/api';
 import { getWsBase } from '@/lib/api';
 import { getToken, logout } from '@/lib/auth';
@@ -182,6 +183,7 @@ export default function GameClient({ gameId, initialState, lobbyState }: GameCli
 function ActiveGame({ gameId, initialState }: { gameId: string; initialState: GameState }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   async function handleQuit() {
     try { await quitGame(gameId); } catch { /* ignore — game may already be gone */ }
@@ -337,6 +339,12 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 w-40 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 overflow-hidden">
+                <button
+                  onClick={() => { setMenuOpen(false); setRulesOpen(true); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 transition-colors"
+                >
+                  Rules
+                </button>
                 <button
                   onClick={() => { setMenuOpen(false); router.push('/'); }}
                   className="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 transition-colors"
@@ -557,6 +565,9 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
           </div>
         </section>
       </main>
+
+      {/* Rules modal */}
+      {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
 
       {/* Group selector modal */}
       {pendingAction === 'open' && myCards.length > 0 && (

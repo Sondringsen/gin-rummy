@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createGame, getActiveGames, getGameHistory, getPendingInvitations, joinGame } from '@/lib/api';
 import { isAuthenticated, getToken, logout } from '@/lib/auth';
 import { ActiveGameEntry, GameHistoryEntry, LobbyState } from '@/lib/types';
+import RulesModal from '@/components/RulesModal';
 
 function getMyUsername(): string | null {
   try {
@@ -30,6 +31,7 @@ export default function Home() {
   const [activeGames, setActiveGames] = useState<ActiveGameEntry[]>([]);
   const [history, setHistory] = useState<GameHistoryEntry[]>([]);
   const myUsername = getMyUsername();
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -85,12 +87,21 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-8">
-      <button
-        onClick={handleLogout}
-        className="absolute top-4 right-4 px-3 py-1.5 text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition-colors"
-      >
-        Log out
-      </button>
+      <div className="absolute top-4 right-4 flex gap-2">
+        <button
+          onClick={() => setRulesOpen(true)}
+          className="px-3 py-1.5 text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition-colors"
+        >
+          Rules
+        </button>
+        <button
+          onClick={handleLogout}
+          className="px-3 py-1.5 text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition-colors"
+        >
+          Log out
+        </button>
+      </div>
+      {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       <div className="flex flex-col gap-6 w-full max-w-sm">
         {/* Create game card */}
         <div className="bg-gray-900 rounded-2xl border border-gray-800 p-8 flex flex-col gap-6">
