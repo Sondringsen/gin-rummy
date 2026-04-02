@@ -72,12 +72,18 @@ The app is deployed on AWS with:
 
 ```
 deploy/
-  gin-rummy-backend.service  — systemd unit file, runs uvicorn on 127.0.0.1:8000
+  gin-rummy-backend.service  — systemd unit: runs uvicorn on 127.0.0.1:8000
+  gin-rummy-frontend.service — systemd unit: runs Next.js on 127.0.0.1:3000 via nvm node
   nginx.conf                 — nginx reverse proxy: /api/ → :8000, / → :3000
 .env.prod                    — production env vars (not committed); transferred to server as .env
 frontend/.env.local          — dev: NEXT_PUBLIC_API_URL=http://localhost:8000
 frontend/.env.production     — prod: NEXT_PUBLIC_API_URL= (empty, uses relative URLs through nginx)
 ```
+
+> Node.js on the EC2 instance is managed via **nvm** (v24.14.1). The frontend systemd service
+> hardcodes the full nvm binary path since systemd does not load the user's shell environment.
+> If the Node version changes, update `ExecStart` and `Environment=PATH` in
+> `deploy/gin-rummy-frontend.service` accordingly.
 
 ### How traffic flows
 

@@ -95,10 +95,11 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Install systemd service
+# Install systemd services (backend + frontend)
 sudo cp deploy/gin-rummy-backend.service /etc/systemd/system/
+sudo cp deploy/gin-rummy-frontend.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable gin-rummy-backend
+sudo systemctl enable gin-rummy-backend gin-rummy-frontend
 sudo systemctl start gin-rummy-backend
 
 # Install nginx config
@@ -110,9 +111,15 @@ sudo systemctl start nginx
 # Run DB migrations
 alembic upgrade head
 
-# Build and start frontend
-cd frontend && npm install && npm run build && npm start -- -p 3000 &
+# Build frontend (must be done before starting the frontend service)
+cd frontend && npm install && npm run build && cd ..
+
+sudo systemctl start gin-rummy-frontend
 ```
+
+> **Note:** Node.js is managed via nvm. The frontend service uses the full nvm path
+> (`/home/ec2-user/.nvm/versions/node/v24.14.1/bin/npm`). If you upgrade Node, update
+> `deploy/gin-rummy-frontend.service` to match.
 
 ### Redeploying
 
@@ -121,13 +128,14 @@ git pull
 source .venv/bin/activate && pip install -r requirements.txt
 alembic upgrade head
 sudo systemctl restart gin-rummy-backend
-cd frontend && npm run build && pm2 restart gin-rummy-frontend  # or kill & restart npm start
+cd frontend && npm run build && cd .. && sudo systemctl restart gin-rummy-frontend
 ```
 
 ### Logs
 
 ```bash
 journalctl -u gin-rummy-backend -f
+journalctl -u gin-rummy-frontend -f
 ```
 
 ## API
