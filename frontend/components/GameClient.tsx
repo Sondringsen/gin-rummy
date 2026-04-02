@@ -410,6 +410,7 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
                 {(p.open_tress.length > 0 || p.open_flush.length > 0) && (
                   <OpenCards
                     playerNum={p.player_num}
+                    playerName={p.username ?? `Player ${p.player_num + 1}`}
                     openTress={p.open_tress}
                     openFlush={p.open_flush}
                     canBuild={iHaveOpened && isMyTurn && state.has_drawn}
@@ -425,6 +426,7 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
         {(myView?.open_tress.length > 0 || myView?.open_flush.length > 0) && (
           <OpenCards
             playerNum={perspective}
+            playerName={myView.username ?? `Player ${perspective + 1}`}
             openTress={myView.open_tress}
             openFlush={myView.open_flush}
             canBuild={iHaveOpened && isMyTurn && state.has_drawn}

@@ -18,6 +18,7 @@ export function isWild(card: CardModel): boolean {
 }
 
 export function cardsEqual(a: CardModel, b: CardModel): boolean {
+  if (a.id && b.id) return a.id === b.id;
   return a.suit === b.suit && a.value === b.value;
 }
 

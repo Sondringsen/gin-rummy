@@ -1,7 +1,8 @@
 from collections import Counter
-from dataclasses import dataclass
-from typing import Literal, List, Dict, Tuple
+from dataclasses import dataclass, field
+from typing import Literal, List, Dict, Tuple, Optional
 import random
+import uuid
 
 
 ROUND_REQUIREMENTS: Dict[int, Tuple[int, int]] = {
@@ -18,6 +19,8 @@ ROUND_REQUIREMENTS: Dict[int, Tuple[int, int]] = {
 class Card:
     suit: Literal['S', 'H', 'D', 'C']
     value: int  # 2-14, where 14 = Ace, 11=J, 12=Q, 13=K
+    card_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8], compare=False, hash=False)
+    assigned_value: Optional[int] = field(default=None, compare=False, hash=False)
 
     def __post_init__(self):
         if self.suit not in ('S', 'H', 'D', 'C'):
@@ -44,7 +47,10 @@ class Card:
         return f'{self.suit}{names.get(self.value, self.value)}'
 
     def to_dict(self) -> dict:
-        return {'suit': self.suit, 'value': self.value}
+        d: dict = {'suit': self.suit, 'value': self.value, 'id': self.card_id}
+        if self.assigned_value is not None:
+            d['assigned_value'] = self.assigned_value
+        return d
 
 
 class Deck:
@@ -197,7 +203,13 @@ class GinRummy:
         if self.has_drawn:
             raise ValueError('Player has already drawn this turn.')
         if not self.fresh_cards:
-            raise ValueError('Fresh deck is empty.')
+            if len(self.discarded_cards) <= 1:
+                raise ValueError('No cards left to draw.')
+            # Keep the top discard in place; reshuffle the rest into the fresh deck
+            top_discard = self.discarded_cards[-1]
+            self.fresh_cards = self.discarded_cards[:-1]
+            random.shuffle(self.fresh_cards)
+            self.discarded_cards = [top_discard]
         drawn = random.choice(self.fresh_cards)
         self.fresh_cards.remove(drawn)
         self.player_cards[self.player_turn].append(drawn)
@@ -305,11 +317,8 @@ class GinRummy:
         if not self.validate_open(tress_groups, flush_groups):
             raise ValueError('Invalid open: groups do not satisfy round requirements.')
 
-        def to_cards(groups):
-            return [[Card(c['suit'], c['value']) for c in g] for g in groups]
-
-        t_cards = to_cards(tress_groups)
-        f_cards = to_cards(flush_groups)
+        t_cards = [[Card(c['suit'], c['value']) for c in g] for g in tress_groups]
+        f_cards = [[Card(c['suit'], c['value'], assigned_value=c.get('assigned_value')) for c in g] for g in flush_groups]
 
         hand = self.player_cards[self.player_turn]
         for group in t_cards + f_cards:
@@ -348,7 +357,7 @@ class GinRummy:
         if group_index < 0 or group_index >= len(groups):
             raise ValueError(f'Invalid group index {group_index}.')
 
-        new_cards = [Card(c['suit'], c['value']) for c in cards]
+        new_cards = [Card(c['suit'], c['value'], assigned_value=c.get('assigned_value') if group_type == 'flush' else None) for c in cards]
         hand = self.player_cards[player_num]
         hand_counts = Counter(hand)
         for card, count in Counter(new_cards).items():

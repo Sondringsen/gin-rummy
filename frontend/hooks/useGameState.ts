@@ -32,9 +32,9 @@ export function useGameState(gameId: string, initialState: GameState) {
 
   const toggleCard = useCallback((card: CardModel) => {
     setSelectedCards((prev) => {
-      const exists = prev.some((c) => c.suit === card.suit && c.value === card.value);
+      const exists = prev.some((c) => card.id ? c.id === card.id : c.suit === card.suit && c.value === card.value);
       return exists
-        ? prev.filter((c) => !(c.suit === card.suit && c.value === card.value))
+        ? prev.filter((c) => card.id ? c.id !== card.id : !(c.suit === card.suit && c.value === card.value))
         : [...prev, card];
     });
   }, []);

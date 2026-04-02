@@ -4,6 +4,7 @@ import Card from './Card';
 
 interface PlayerOpenCardsProps {
   playerNum: number;
+  playerName?: string;
   openTress: CardModel[][];
   openFlush: CardModel[][];
   canBuild: boolean;
@@ -45,19 +46,19 @@ function GroupDisplay({
       </div>
       <div className="flex gap-1 flex-wrap">
         {group.map((card, i) => (
-          <Card key={`${card.suit}${card.value}-${i}`} card={card} small />
+          <Card key={card.id ?? `${card.suit}${card.value}-${i}`} card={card} small />
         ))}
       </div>
     </div>
   );
 }
 
-export default function OpenCards({ playerNum, openTress, openFlush, canBuild, onBuildClick, onReplaceWildClick }: PlayerOpenCardsProps) {
+export default function OpenCards({ playerNum, playerName, openTress, openFlush, canBuild, onBuildClick, onReplaceWildClick }: PlayerOpenCardsProps) {
   if (openTress.length === 0 && openFlush.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-2 p-2 rounded-lg bg-gray-800 border border-gray-700">
-      <p className="text-xs font-semibold text-gray-300">Player {playerNum + 1} opened</p>
+      <p className="text-xs font-semibold text-gray-300">{playerName ?? `Player ${playerNum + 1}`} opened</p>
       <div className="flex flex-col gap-2">
         {openTress.map((group, i) => (
           <GroupDisplay
@@ -68,15 +69,18 @@ export default function OpenCards({ playerNum, openTress, openFlush, canBuild, o
             onReplaceWild={canBuild && onReplaceWildClick && group.some(isWild) ? () => onReplaceWildClick(playerNum, 'tress', i) : undefined}
           />
         ))}
-        {openFlush.map((group, i) => (
-          <GroupDisplay
-            key={`flush-${i}`}
-            group={group}
-            label={`Flush ${i + 1}`}
-            onBuild={canBuild && onBuildClick ? () => onBuildClick(playerNum, 'flush', i) : undefined}
-            onReplaceWild={canBuild && onReplaceWildClick && group.some(isWild) ? () => onReplaceWildClick(playerNum, 'flush', i) : undefined}
-          />
-        ))}
+        {openFlush.map((group, i) => {
+          const sortedGroup = [...group].sort((a, b) => (a.assigned_value ?? a.value) - (b.assigned_value ?? b.value));
+          return (
+            <GroupDisplay
+              key={`flush-${i}`}
+              group={sortedGroup}
+              label={`Flush ${i + 1}`}
+              onBuild={canBuild && onBuildClick ? () => onBuildClick(playerNum, 'flush', i) : undefined}
+              onReplaceWild={canBuild && onReplaceWildClick && group.some(isWild) ? () => onReplaceWildClick(playerNum, 'flush', i) : undefined}
+            />
+          );
+        })}
       </div>
     </div>
   );
