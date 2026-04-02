@@ -71,10 +71,18 @@ export default function OpenCards({ playerNum, playerName, openTress, openFlush,
         ))}
         {openFlush.map((group, i) => {
           const sortedGroup = [...group].sort((a, b) => (a.assigned_value ?? a.value) - (b.assigned_value ?? b.value));
+          // Detect ace-low flush: ace sorts last but sequence is low (e.g. A-2-3-4)
+          const effectiveVals = sortedGroup.map(c => c.assigned_value ?? c.value);
+          const lastVal = effectiveVals[effectiveVals.length - 1];
+          const nonAceVals = effectiveVals.filter(v => v !== 14);
+          const aceLow = lastVal === 14 && nonAceVals.length > 0 && Math.min(...nonAceVals) <= 5;
+          const displayGroup = aceLow
+            ? [sortedGroup[sortedGroup.length - 1], ...sortedGroup.slice(0, -1)]
+            : sortedGroup;
           return (
             <GroupDisplay
               key={`flush-${i}`}
-              group={sortedGroup}
+              group={displayGroup}
               label={`Flush ${i + 1}`}
               onBuild={canBuild && onBuildClick ? () => onBuildClick(playerNum, 'flush', i) : undefined}
               onReplaceWild={canBuild && onReplaceWildClick && group.some(isWild) ? () => onReplaceWildClick(playerNum, 'flush', i) : undefined}

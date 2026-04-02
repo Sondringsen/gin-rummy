@@ -13,15 +13,20 @@ function validWildValues(group: CardModel[]): number[] {
   if (covered.length === 0) return [];
   const min = Math.min(...covered);
   const max = Math.max(...covered);
-  const valid: number[] = [];
-  // Gaps inside the range
+
+  // First check for gaps that must be filled
+  const gaps: number[] = [];
   for (let v = min; v <= max; v++) {
-    if (!covered.includes(v)) valid.push(v);
+    if (!covered.includes(v)) gaps.push(v);
   }
-  // Extensions at either end
-  if (min > 2) valid.push(min - 1);
-  if (max < 14) valid.push(max + 1);
-  return valid.sort((a, b) => a - b);
+
+  // Only offer extensions if there are no gaps — gaps must be filled first
+  if (gaps.length > 0) return gaps;
+
+  const extensions: number[] = [];
+  if (min > 2) extensions.push(min - 1);
+  if (max < 14) extensions.push(max + 1);
+  return extensions;
 }
 
 const VALUE_LABEL: Record<number, string> = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
