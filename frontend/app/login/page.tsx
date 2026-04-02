@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setToken } from '@/lib/auth';
 
-const BASE = 'http://localhost:8000/api/auth';
+const BASE = `${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/auth`;
 
 export default function LoginPage() {
   const router = useRouter();

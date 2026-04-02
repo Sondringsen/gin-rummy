@@ -9,6 +9,7 @@ import OpenCards from './OpenCards';
 import GroupSelector from './GroupSelector';
 import ScoreBoard from './ScoreBoard';
 import * as api from '@/lib/api';
+import { getWsBase } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 
 type SortMode = 'none' | 'value' | 'suit';
@@ -50,7 +51,7 @@ function LobbyScreen({ gameId, initialLobby, onGameStarted }: LobbyScreenProps) 
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    const ws = new WebSocket(`ws://localhost:8000/api/game/${gameId}/ws?token=${token}`);
+    const ws = new WebSocket(`${getWsBase()}/api/game/${gameId}/ws?token=${token}`);
     ws.onmessage = async (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'lobby') {
@@ -208,7 +209,7 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    const ws = new WebSocket(`ws://localhost:8000/api/game/${gameId}/ws?token=${token}`);
+    const ws = new WebSocket(`${getWsBase()}/api/game/${gameId}/ws?token=${token}`);
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'game') updateState(msg.data);

@@ -1,7 +1,14 @@
 import { CardModel, GameState, LobbyState } from './types';
 import { getAuthHeaders } from './auth';
 
-const BASE = 'http://localhost:8000/api/game';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+const BASE = `${API_URL}/api/game`;
+
+export function getWsBase(): string {
+  if (API_URL) return API_URL.replace(/^http/, 'ws');
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${window.location.host}`;
+}
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
