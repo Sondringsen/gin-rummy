@@ -2,9 +2,24 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createGame, getPendingInvitations, joinGame } from '@/lib/api';
-import { isAuthenticated, logout } from '@/lib/auth';
-import { LobbyState } from '@/lib/types';
+import { createGame, getActiveGames, getGameHistory, getPendingInvitations, joinGame } from '@/lib/api';
+import { isAuthenticated, getToken, logout } from '@/lib/auth';
+import { ActiveGameEntry, GameHistoryEntry, LobbyState } from '@/lib/types';
+
+function getMyUsername(): string | null {
+  try {
+    const token = getToken();
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.username ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 export default function Home() {
   const router = useRouter();
@@ -12,6 +27,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invitations, setInvitations] = useState<LobbyState[]>([]);
+  const [activeGames, setActiveGames] = useState<ActiveGameEntry[]>([]);
+  const [history, setHistory] = useState<GameHistoryEntry[]>([]);
+  const myUsername = getMyUsername();
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -20,17 +38,24 @@ export default function Home() {
   }, [router]);
 
   const fetchInvitations = useCallback(async () => {
-    try {
-      const inv = await getPendingInvitations();
-      setInvitations(inv);
-    } catch { /* ignore */ }
+    try { setInvitations(await getPendingInvitations()); } catch { /* ignore */ }
+  }, []);
+
+  const fetchActiveGames = useCallback(async () => {
+    try { setActiveGames(await getActiveGames()); } catch { /* ignore */ }
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    try { setHistory(await getGameHistory()); } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
     fetchInvitations();
-    const id = setInterval(fetchInvitations, 5000);
+    fetchActiveGames();
+    fetchHistory();
+    const id = setInterval(() => { fetchInvitations(); fetchActiveGames(); }, 5000);
     return () => clearInterval(id);
-  }, [fetchInvitations]);
+  }, [fetchInvitations, fetchActiveGames, fetchHistory]);
 
   async function handleCreate() {
     setLoading(true);
@@ -104,6 +129,27 @@ export default function Home() {
           </button>
         </div>
 
+        {/* Active games */}
+        {activeGames.length > 0 && (
+          <div className="bg-gray-900 rounded-2xl border border-blue-800 p-6 flex flex-col gap-3">
+            <h2 className="text-lg font-semibold text-blue-400">Active Games</h2>
+            {activeGames.map((g) => (
+              <div key={g.game_id} className="flex items-center justify-between gap-4 bg-gray-800 rounded-lg px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium">{g.players.join(' vs ')}</p>
+                  <p className="text-xs text-gray-400">Round {g.round}/6</p>
+                </div>
+                <button
+                  onClick={() => router.push(`/game/${g.game_id}`)}
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium"
+                >
+                  Return
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Pending invitations */}
         {invitations.length > 0 && (
           <div className="bg-gray-900 rounded-2xl border border-yellow-700 p-6 flex flex-col gap-4">
@@ -122,6 +168,47 @@ export default function Home() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Game history */}
+        {history.length > 0 && (
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-6 flex flex-col gap-3">
+            <h2 className="text-lg font-semibold text-gray-300">Game History</h2>
+            {history.slice(0, 10).map((g) => {
+              const me = g.players.find((p) => p.username === myUsername);
+              const myScore = me?.final_score ?? null;
+              const minScore = g.completed
+                ? Math.min(...g.players.map((p) => p.final_score ?? Infinity))
+                : null;
+              const won = g.completed && myScore !== null && myScore === minScore;
+              const others = g.players.filter((p) => p.username !== myUsername);
+
+              return (
+                <div key={g.game_id} className="bg-gray-800 rounded-lg px-4 py-3 flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">{formatDate(g.played_at)}</span>
+                    {g.completed ? (
+                      <span className={`text-xs font-semibold ${won ? 'text-green-400' : 'text-red-400'}`}>
+                        {won ? 'Win' : 'Loss'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-500 italic">Incomplete</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    {g.players.map((p) => (
+                      <span key={p.username} className={p.username === myUsername ? 'text-yellow-400 font-medium' : 'text-gray-400'}>
+                        {p.username}: {p.final_score ?? '—'}
+                      </span>
+                    ))}
+                  </div>
+                  {others.length > 0 && (
+                    <p className="text-xs text-gray-500">vs {others.map((p) => p.username).join(', ')}</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

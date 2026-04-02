@@ -53,3 +53,22 @@ export interface LobbyState {
   invited: string[];
   started: boolean;
 }
+
+export interface ActiveGameEntry {
+  game_id: string;
+  n_players: number;
+  players: string[];
+  round: number;
+}
+
+export interface GameHistoryPlayer {
+  username: string;
+  final_score: number | null;
+}
+
+export interface GameHistoryEntry {
+  game_id: string;
+  played_at: string;
+  completed: boolean;
+  players: GameHistoryPlayer[];
+}
