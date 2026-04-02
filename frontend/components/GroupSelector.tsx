@@ -74,6 +74,12 @@ export default function GroupSelector({
     }
   }
 
+  function removeCard(group: CardModel[], card: CardModel): CardModel[] {
+    const idx = group.findIndex((c) => cardsEqual(c, card));
+    if (idx === -1) return group;
+    return [...group.slice(0, idx), ...group.slice(idx + 1)];
+  }
+
   function removeCardFromGroup(type: 'tress' | 'flush', index: number, card: CardModel) {
     if (type === 'tress') {
       setTressGroups(tressGroups.map((g, i) => (i === index ? removeCard(g, card) : g)));
