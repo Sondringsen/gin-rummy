@@ -22,6 +22,7 @@ class GameMeta:
     # username -> invited_at timestamp
     invited: Dict[str, datetime] = field(default_factory=dict)
     started: bool = False
+    result_saved: bool = False
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -236,3 +237,80 @@ def next_round(game_id: str, username: str) -> dict:
     meta.game.new_round()
     _touch(meta)
     return _state(meta, game_id, player_num)
+
+
+def save_game_result(game_id: str, meta: 'GameMeta', db, completed: bool = True) -> None:
+    """Persist final scores (or null for incomplete/quit) to game_results table."""
+    from backend.auth.models import User
+    from backend.game_logic.models import GameResult
+
+    played_at = datetime.now(timezone.utc)
+    scores = meta.game.scores  # list[int], one per player
+
+    for player_num, username in enumerate(meta.slots):
+        if username is None:
+            continue
+        user = db.query(User).filter(User.username == username).first()
+        if user is None:
+            continue
+        result = GameResult(
+            game_id=game_id,
+            player_id=user.id,
+            username=username,
+            final_score=scores[player_num] if completed else None,
+            completed=completed,
+            played_at=played_at,
+        )
+        db.add(result)
+
+    db.commit()
+    meta.result_saved = True
+
+
+def get_game_history(user_id, db) -> list:
+    """Return all completed/quit games for a user, each with all players' scores."""
+    from backend.game_logic.models import GameResult
+
+    game_ids = [
+        r.game_id
+        for r in db.query(GameResult.game_id).filter(GameResult.player_id == user_id).all()
+    ]
+    if not game_ids:
+        return []
+
+    rows = (
+        db.query(GameResult)
+        .filter(GameResult.game_id.in_(game_ids))
+        .order_by(GameResult.played_at.desc())
+        .all()
+    )
+
+    games: Dict[str, dict] = {}
+    for row in rows:
+        if row.game_id not in games:
+            games[row.game_id] = {
+                'game_id': row.game_id,
+                'played_at': row.played_at,
+                'completed': row.completed,
+                'players': [],
+            }
+        games[row.game_id]['players'].append({
+            'username': row.username,
+            'final_score': row.final_score,
+        })
+
+    return sorted(games.values(), key=lambda g: g['played_at'], reverse=True)
+
+
+def get_active_games(username: str) -> list:
+    """Return in-memory games where this user is a participant and the game has started."""
+    result = []
+    for game_id, meta in _games.items():
+        if username in meta.slots and meta.started:
+            result.append({
+                'game_id': game_id,
+                'n_players': meta.n_players,
+                'players': [s for s in meta.slots if s is not None],
+                'round': meta.game.round,
+            })
+    return result

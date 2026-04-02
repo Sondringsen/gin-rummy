@@ -1,4 +1,4 @@
-import { CardModel, GameState, LobbyState } from './types';
+import { ActiveGameEntry, CardModel, GameHistoryEntry, GameState, LobbyState } from './types';
 import { getAuthHeaders } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
@@ -149,4 +149,12 @@ export async function reorderCards(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ card_order: cardOrder }),
   });
+}
+
+export async function getActiveGames(): Promise<ActiveGameEntry[]> {
+  return request<ActiveGameEntry[]>(`${BASE}/active`);
+}
+
+export async function getGameHistory(): Promise<GameHistoryEntry[]> {
+  return request<GameHistoryEntry[]>(`${BASE}/history`);
 }

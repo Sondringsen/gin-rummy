@@ -9,7 +9,7 @@ from backend.config import get_settings
 from backend.game_logic.schema import (
     CreateGameRequest, InviteRequest, InitialDiscardRequest, DrawDiscardRequest,
     DiscardCardRequest, OpenHandRequest, BuildOnRequest, ReplaceWildRequest,
-    ReorderRequest, GameState, LobbyState,
+    ReorderRequest, GameState, LobbyState, ActiveGameEntry, GameHistoryEntry,
 )
 from backend.game_logic.ws import manager
 import backend.game_logic.service as svc
@@ -57,6 +57,16 @@ def create_game(req: CreateGameRequest, me: User = Depends(get_current_user)):
 @router.get('/invitations', response_model=list[LobbyState])
 def get_invitations(me: User = Depends(get_current_user)):
     return [LobbyState(**s) for s in svc.get_pending_invitations(me.username)]
+
+
+@router.get('/active', response_model=list[ActiveGameEntry])
+def get_active_games(me: User = Depends(get_current_user)):
+    return [ActiveGameEntry(**e) for e in svc.get_active_games(me.username)]
+
+
+@router.get('/history', response_model=list[GameHistoryEntry])
+def get_game_history(me: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return [GameHistoryEntry(**e) for e in svc.get_game_history(me.id, db)]
 
 
 @router.get('/{game_id}/lobby', response_model=LobbyState)
@@ -122,21 +132,25 @@ async def draw_from_discard(game_id: str, req: DrawDiscardRequest, me: User = De
 
 
 @router.post('/{game_id}/discard', response_model=GameState)
-async def discard_card(game_id: str, req: DiscardCardRequest, me: User = Depends(get_current_user)):
+async def discard_card(game_id: str, req: DiscardCardRequest, me: User = Depends(get_current_user), db: Session = Depends(get_db)):
     state = _wrap_game(svc.discard_card, game_id, me.username, req.card.model_dump())
     meta = svc._games.get(game_id)
     if meta:
+        if state.game_over and not meta.result_saved:
+            svc.save_game_result(game_id, meta, db, completed=True)
         await manager.broadcast_game(game_id, meta)
     return state
 
 
 @router.post('/{game_id}/open', response_model=GameState)
-async def open_hand(game_id: str, req: OpenHandRequest, me: User = Depends(get_current_user)):
+async def open_hand(game_id: str, req: OpenHandRequest, me: User = Depends(get_current_user), db: Session = Depends(get_db)):
     tress = [[c.model_dump() for c in g] for g in req.tress_groups]
     flush = [[c.model_dump() for c in g] for g in req.flush_groups]
     state = _wrap_game(svc.open_hand, game_id, me.username, tress, flush)
     meta = svc._games.get(game_id)
     if meta:
+        if state.game_over and not meta.result_saved:
+            svc.save_game_result(game_id, meta, db, completed=True)
         await manager.broadcast_game(game_id, meta)
     return state
 
@@ -176,7 +190,10 @@ async def next_round(game_id: str, me: User = Depends(get_current_user)):
 
 
 @router.post('/{game_id}/quit', status_code=204)
-async def quit_game(game_id: str, me: User = Depends(get_current_user)):
+async def quit_game(game_id: str, me: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    meta = svc._games.get(game_id)
+    if meta and meta.started and not meta.result_saved:
+        svc.save_game_result(game_id, meta, db, completed=False)
     try:
         svc.quit_game(game_id, me.username)
     except KeyError as e:

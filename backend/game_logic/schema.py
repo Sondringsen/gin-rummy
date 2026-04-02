@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Literal, Optional
 from pydantic import BaseModel
 
@@ -96,3 +97,22 @@ class GameState(BaseModel):
     scores: List[int]
     n_players: int
     round_requirements: RoundRequirements
+
+
+class ActiveGameEntry(BaseModel):
+    game_id: str
+    n_players: int
+    players: List[str]
+    round: int
+
+
+class GameHistoryPlayer(BaseModel):
+    username: str
+    final_score: Optional[int] = None
+
+
+class GameHistoryEntry(BaseModel):
+    game_id: str
+    played_at: datetime
+    completed: bool
+    players: List[GameHistoryPlayer]
