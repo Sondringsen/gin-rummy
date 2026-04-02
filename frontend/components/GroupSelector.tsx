@@ -5,31 +5,8 @@ import { cardLabel, cardsEqual, isRed, isWild, suitSymbol } from '@/lib/gameUtil
 import { useState } from 'react';
 import Card from './Card';
 
-/** Compute the valid values a wildcard can take when added to a flush group. */
-function validWildValues(group: CardModel[]): number[] {
-  const covered = group
-    .filter((c) => !isWild(c) || c.assigned_value != null)
-    .map((c) => c.assigned_value ?? c.value);
-  if (covered.length === 0) return [];
-  const min = Math.min(...covered);
-  const max = Math.max(...covered);
-
-  // First check for gaps that must be filled
-  const gaps: number[] = [];
-  for (let v = min; v <= max; v++) {
-    if (!covered.includes(v)) gaps.push(v);
-  }
-
-  // Only offer extensions if there are no gaps — gaps must be filled first
-  if (gaps.length > 0) return gaps;
-
-  const extensions: number[] = [];
-  if (min > 2) extensions.push(min - 1);
-  if (max < 14) extensions.push(max + 1);
-  return extensions;
-}
-
-const VALUE_LABEL: Record<number, string> = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+const VALUE_LABEL: Record<number, string> = { 1: 'A(1)', 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+const ALL_WILD_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
 interface GroupSelectorProps {
   hand: CardModel[];
@@ -97,22 +74,7 @@ export default function GroupSelector({
       setTressGroups(updated);
     } else {
       if (isWild(card)) {
-        const currentGroup = flushGroups[activeGroup.index];
-        const valid = validWildValues(currentGroup);
-        if (valid.length === 0) {
-          // No existing non-wild cards — show full range
-          const allValues = Array.from({ length: 13 }, (_, i) => i + 2);
-          setWildcardPicker({ card, validValues: allValues });
-        } else if (valid.length === 1) {
-          // Only one valid position — assign automatically
-          const updated = flushGroups.map((g, i) =>
-            i === activeGroup.index ? [...g, { ...card, assigned_value: valid[0] }] : g
-          );
-          setFlushGroups(updated);
-        } else {
-          // Let the player pick
-          setWildcardPicker({ card, validValues: valid });
-        }
+        setWildcardPicker({ card, validValues: ALL_WILD_VALUES });
       } else {
         const updated = flushGroups.map((g, i) => (i === activeGroup.index ? [...g, card] : g));
         setFlushGroups(updated);
