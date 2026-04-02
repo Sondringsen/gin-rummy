@@ -62,6 +62,36 @@ alembic upgrade head
 alembic revision --autogenerate -m "description"
 ```
 
+## Deployment
+
+The app is deployed on AWS with:
+- **EC2** (Amazon Linux) — runs the backend (systemd) and frontend (Next.js)
+- **RDS** (PostgreSQL) — managed database, same VPC as EC2
+
+### Key files
+
+```
+deploy/
+  gin-rummy-backend.service  — systemd unit file, runs uvicorn on 127.0.0.1:8000
+  nginx.conf                 — nginx reverse proxy: /api/ → :8000, / → :3000
+.env.prod                    — production env vars (not committed); transferred to server as .env
+frontend/.env.local          — dev: NEXT_PUBLIC_API_URL=http://localhost:8000
+frontend/.env.production     — prod: NEXT_PUBLIC_API_URL= (empty, uses relative URLs through nginx)
+```
+
+### How traffic flows
+
+```
+Browser → nginx :80 → /api/* → uvicorn :8000 (FastAPI)
+                     → /     → Next.js  :3000
+```
+
+WebSocket connections (`/api/game/{id}/ws`) also go through the `/api/` nginx block, which has `Upgrade` headers set.
+
+### Frontend API URLs
+
+All API base URLs are controlled by `NEXT_PUBLIC_API_URL`. In production this is empty, making all calls relative (e.g. `/api/game/...`) so nginx routes them. The `getWsBase()` helper in `frontend/lib/api.ts` derives the WebSocket URL from either the env var or `window.location`.
+
 ## Running the App
 
 ```bash

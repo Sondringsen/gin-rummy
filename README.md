@@ -76,6 +76,60 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to view the app.
 
+## Production Deployment
+
+The app runs on AWS EC2 (Amazon Linux) with RDS PostgreSQL. No Docker — the backend is managed by systemd and traffic is routed through nginx.
+
+### 1. Transfer environment file
+
+```bash
+# From local machine — renames .env.prod to .env on the server
+scp -i ~/.ssh/<key>.pem .env.prod ec2-user@<ec2-ip>:/home/ec2-user/gin-rummy/.env
+```
+
+### 2. On the EC2 instance
+
+```bash
+# Install Python dependencies
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Install systemd service
+sudo cp deploy/gin-rummy-backend.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable gin-rummy-backend
+sudo systemctl start gin-rummy-backend
+
+# Install nginx config
+sudo cp deploy/nginx.conf /etc/nginx/conf.d/gin-rummy.conf
+sudo nginx -t
+sudo systemctl enable nginx
+sudo systemctl start nginx
+
+# Run DB migrations
+alembic upgrade head
+
+# Build and start frontend
+cd frontend && npm install && npm run build && npm start -- -p 3000 &
+```
+
+### Redeploying
+
+```bash
+git pull
+source .venv/bin/activate && pip install -r requirements.txt
+alembic upgrade head
+sudo systemctl restart gin-rummy-backend
+cd frontend && npm run build && pm2 restart gin-rummy-frontend  # or kill & restart npm start
+```
+
+### Logs
+
+```bash
+journalctl -u gin-rummy-backend -f
+```
+
 ## API
 
 | Method | Endpoint | Description |
