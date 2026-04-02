@@ -51,6 +51,12 @@ class ConnectionManager:
                 except Exception:
                     self.disconnect(game_id, ws)
 
+    async def broadcast_raw(self, game_id: str, payload: dict) -> None:
+        await self._send_all(game_id, payload)
+
+    def disconnect_all(self, game_id: str) -> None:
+        self._connections.pop(game_id, None)
+
     async def _send_all(self, game_id: str, payload: dict) -> None:
         pairs = list(self._connections.get(game_id, []))
         dead: list[WebSocket] = []

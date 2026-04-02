@@ -175,6 +175,18 @@ async def next_round(game_id: str, me: User = Depends(get_current_user)):
     return state
 
 
+@router.post('/{game_id}/quit', status_code=204)
+async def quit_game(game_id: str, me: User = Depends(get_current_user)):
+    try:
+        svc.quit_game(game_id, me.username)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await manager.broadcast_raw(game_id, {'type': 'game_quit', 'quitter': me.username})
+    manager.disconnect_all(game_id)
+
+
 @router.post('/{game_id}/reorder', response_model=GameState)
 def reorder_cards(game_id: str, req: ReorderRequest, me: User = Depends(get_current_user)):
     # Reorder is local to this player only — no broadcast needed

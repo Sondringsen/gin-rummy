@@ -127,6 +127,13 @@ def join_game(game_id: str, username: str) -> dict:
     return _lobby_state(meta, game_id)
 
 
+def quit_game(game_id: str, username: str) -> None:
+    meta = _get(game_id)
+    if username not in meta.slots:
+        raise ValueError('You are not a player in this game.')
+    del _games[game_id]
+
+
 def get_pending_invitations(username: str) -> list:
     """Return list of game lobbies where this user has a non-expired pending invitation."""
     now = datetime.now(timezone.utc)
