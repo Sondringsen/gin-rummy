@@ -14,30 +14,21 @@ interface BuildTarget {
 
 export function useGameState(gameId: string, initialState: GameState) {
   const [state, setState] = useState<GameState>(initialState);
-  const [perspective, setPerspective] = useState<number>(0);
   const [selectedCards, setSelectedCards] = useState<CardModel[]>([]);
   const [pendingAction, setPendingAction] = useState<PendingAction>('none');
   const [buildTarget, setBuildTarget] = useState<BuildTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Grouped selections for open modal: array of groups, each group is a list of cards
   const [tressGroups, setTressGroups] = useState<CardModel[][]>([]);
   const [flushGroups, setFlushGroups] = useState<CardModel[][]>([]);
 
-  const refresh = useCallback(async (p?: number) => {
-    const player = p ?? perspective;
-    const s = await api.getState(gameId, player);
-    setState(s);
-    setSelectedCards([]);
-  }, [gameId, perspective]);
+  // perspective_player is now derived from the server — it's who the logged-in user is
+  const perspective = state.perspective_player;
 
-  const switchPerspective = useCallback(async (p: number) => {
-    setPerspective(p);
-    setSelectedCards([]);
-    setPendingAction('none');
-    setBuildTarget(null);
-    await refresh(p);
-  }, [refresh]);
+  // Called by the WebSocket listener in GameClient when a push arrives
+  const updateState = useCallback((s: GameState) => {
+    setState(s);
+  }, []);
 
   const toggleCard = useCallback((card: CardModel) => {
     setSelectedCards((prev) => {
@@ -52,53 +43,53 @@ export function useGameState(gameId: string, initialState: GameState) {
     if (selectedCards.length !== 1) return;
     try {
       setError(null);
-      const s = await api.initialDiscard(gameId, perspective, selectedCards[0], perspective);
+      const s = await api.initialDiscard(gameId, selectedCards[0]);
       setState(s);
       setSelectedCards([]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [gameId, perspective, selectedCards]);
+  }, [gameId, selectedCards]);
 
   const doDrawFromDeck = useCallback(async () => {
     try {
       setError(null);
-      const s = await api.drawFromDeck(gameId, perspective);
+      const s = await api.drawFromDeck(gameId);
       setState(s);
       setSelectedCards([]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [gameId, perspective]);
+  }, [gameId]);
 
   const doDrawFromDiscard = useCallback(async (playerNum: number) => {
     try {
       setError(null);
-      const s = await api.drawFromDiscard(gameId, playerNum, perspective);
+      const s = await api.drawFromDiscard(gameId, playerNum);
       setState(s);
       setSelectedCards([]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [gameId, perspective]);
+  }, [gameId]);
 
   const doDiscard = useCallback(async () => {
     if (selectedCards.length !== 1) return;
     try {
       setError(null);
-      const s = await api.discardCard(gameId, selectedCards[0], perspective);
+      const s = await api.discardCard(gameId, selectedCards[0]);
       setState(s);
       setSelectedCards([]);
       setPendingAction('none');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [gameId, perspective, selectedCards]);
+  }, [gameId, selectedCards]);
 
   const doOpen = useCallback(async () => {
     try {
       setError(null);
-      const s = await api.openHand(gameId, tressGroups, flushGroups, perspective);
+      const s = await api.openHand(gameId, tressGroups, flushGroups);
       setState(s);
       setSelectedCards([]);
       setTressGroups([]);
@@ -107,7 +98,7 @@ export function useGameState(gameId: string, initialState: GameState) {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [gameId, perspective, tressGroups, flushGroups]);
+  }, [gameId, tressGroups, flushGroups]);
 
   const doBuildOn = useCallback(async () => {
     if (!buildTarget || selectedCards.length === 0) return;
@@ -115,12 +106,10 @@ export function useGameState(gameId: string, initialState: GameState) {
       setError(null);
       const s = await api.buildOn(
         gameId,
-        perspective,
         buildTarget.targetPlayer,
         buildTarget.groupType,
         buildTarget.groupIndex,
         selectedCards,
-        perspective,
       );
       setState(s);
       setSelectedCards([]);
@@ -129,7 +118,7 @@ export function useGameState(gameId: string, initialState: GameState) {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [gameId, perspective, selectedCards, buildTarget]);
+  }, [gameId, selectedCards, buildTarget]);
 
   const doReorder = useCallback(async (newCards: CardModel[]) => {
     const myCards = state.players[perspective]?.cards ?? [];
@@ -148,7 +137,7 @@ export function useGameState(gameId: string, initialState: GameState) {
     if (cardOrder.length !== myCards.length) return;
     try {
       setError(null);
-      const s = await api.reorderCards(gameId, perspective, cardOrder, perspective);
+      const s = await api.reorderCards(gameId, cardOrder);
       setState(s);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -158,14 +147,14 @@ export function useGameState(gameId: string, initialState: GameState) {
   const doNextRound = useCallback(async () => {
     try {
       setError(null);
-      const s = await api.nextRound(gameId, perspective);
+      const s = await api.nextRound(gameId);
       setState(s);
       setSelectedCards([]);
       setPendingAction('none');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [gameId, perspective]);
+  }, [gameId]);
 
   const doReplaceWild = useCallback(async () => {
     if (!buildTarget || selectedCards.length !== 1) return;
@@ -173,12 +162,10 @@ export function useGameState(gameId: string, initialState: GameState) {
       setError(null);
       const s = await api.replaceWild(
         gameId,
-        perspective,
         buildTarget.targetPlayer,
         buildTarget.groupType,
         buildTarget.groupIndex,
         selectedCards[0],
-        perspective,
       );
       setState(s);
       setSelectedCards([]);
@@ -187,7 +174,7 @@ export function useGameState(gameId: string, initialState: GameState) {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [gameId, perspective, selectedCards, buildTarget]);
+  }, [gameId, selectedCards, buildTarget]);
 
   const startBuild = useCallback((targetPlayer: number, groupType: GroupType, groupIndex: number) => {
     setPendingAction('build');
@@ -222,7 +209,7 @@ export function useGameState(gameId: string, initialState: GameState) {
     setFlushGroups,
     error,
     setError,
-    switchPerspective,
+    updateState,
     toggleCard,
     doInitialDiscard,
     doDrawFromDeck,

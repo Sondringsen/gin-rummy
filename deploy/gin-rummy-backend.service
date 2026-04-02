@@ -1,0 +1,13 @@
+[Unit]
+Description=Gin Rummy Backend
+After=network.target
+
+[Service]
+User=ec2-user
+WorkingDirectory=/home/ec2-user/gin-rummy
+ExecStart=/home/ec2-user/gin-rummy/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
