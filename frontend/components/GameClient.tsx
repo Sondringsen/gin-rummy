@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { CardModel, GameState, LobbyState } from '@/lib/types';
 import { useGameState } from '@/hooks/useGameState';
 import Card from './Card';
@@ -10,7 +11,8 @@ import GroupSelector from './GroupSelector';
 import ScoreBoard from './ScoreBoard';
 import * as api from '@/lib/api';
 import { getWsBase } from '@/lib/api';
-import { getToken } from '@/lib/auth';
+import { getToken, logout } from '@/lib/auth';
+import { quitGame } from '@/lib/api';
 
 type SortMode = 'none' | 'value' | 'suit';
 
@@ -178,6 +180,19 @@ export default function GameClient({ gameId, initialState, lobbyState }: GameCli
 // ---- Active game ----
 
 function ActiveGame({ gameId, initialState }: { gameId: string; initialState: GameState }) {
+  const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  async function handleQuit() {
+    try { await quitGame(gameId); } catch { /* ignore — game may already be gone */ }
+    router.push('/');
+  }
+
+  function handleLogout() {
+    logout();
+    router.push('/login');
+  }
+
   const {
     state,
     perspective,
@@ -213,9 +228,10 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'game') updateState(msg.data);
+      if (msg.type === 'game_quit') router.push('/');
     };
     return () => ws.close();
-  }, [gameId, updateState]);
+  }, [gameId, updateState, router]);
 
   const myView = state.players[perspective];
   const isMyTurn = state.player_turn === perspective;
@@ -302,11 +318,46 @@ function ActiveGame({ gameId, initialState }: { gameId: string; initialState: Ga
           <p className="text-xs text-gray-400">Round {state.round}/6</p>
         </div>
         <ScoreBoard scores={state.scores} round={state.round} nPlayers={state.n_players} />
-        <div className="text-right text-sm">
-          <p className="font-semibold text-yellow-400">{myView?.username ?? `Player ${perspective + 1}`}</p>
-          <p className="text-xs text-gray-500">
-            {isMyTurn ? 'Your turn' : `${playerLabel(state.player_turn)}'s turn`}
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="text-right text-sm">
+            <p className="font-semibold text-yellow-400">{myView?.username ?? `Player ${perspective + 1}`}</p>
+            <p className="text-xs text-gray-500">
+              {isMyTurn ? 'Your turn' : `${playerLabel(state.player_turn)}'s turn`}
+            </p>
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              aria-label="Menu"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-40 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 overflow-hidden">
+                <button
+                  onClick={() => { setMenuOpen(false); router.push('/'); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 transition-colors"
+                >
+                  Home
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); handleQuit(); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-gray-700 transition-colors"
+                >
+                  Quit game
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); handleLogout(); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-200 hover:bg-gray-700 transition-colors border-t border-gray-700"
+                >
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

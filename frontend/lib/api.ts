@@ -129,6 +129,17 @@ export async function nextRound(gameId: string): Promise<GameState> {
   return request<GameState>(`${BASE}/${gameId}/next-round`, { method: 'POST' });
 }
 
+export async function quitGame(gameId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/game/${gameId}/quit`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok && res.status !== 404) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail ?? 'Request failed');
+  }
+}
+
 export async function reorderCards(
   gameId: string,
   cardOrder: number[],
