@@ -5,6 +5,9 @@ import { cardLabel, cardsEqual, isRed, isWild, suitSymbol } from '@/lib/gameUtil
 import { useState } from 'react';
 import Card from './Card';
 
+const VALUE_LABEL: Record<number, string> = { 1: 'A(1)', 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
+const ALL_WILD_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
 interface GroupSelectorProps {
   hand: CardModel[];
   tressGroups: CardModel[][];
@@ -40,6 +43,7 @@ export default function GroupSelector({
   onCancel,
 }: GroupSelectorProps) {
   const [activeGroup, setActiveGroup] = useState<{ type: 'tress' | 'flush'; index: number } | null>(null);
+  const [wildcardPicker, setWildcardPicker] = useState<{ card: CardModel; validValues: number[] } | null>(null);
 
   const available = availableCards(hand, tressGroups, flushGroups);
 
@@ -69,9 +73,23 @@ export default function GroupSelector({
       const updated = tressGroups.map((g, i) => (i === activeGroup.index ? [...g, card] : g));
       setTressGroups(updated);
     } else {
-      const updated = flushGroups.map((g, i) => (i === activeGroup.index ? [...g, card] : g));
-      setFlushGroups(updated);
+      if (isWild(card)) {
+        setWildcardPicker({ card, validValues: ALL_WILD_VALUES });
+      } else {
+        const updated = flushGroups.map((g, i) => (i === activeGroup.index ? [...g, card] : g));
+        setFlushGroups(updated);
+      }
     }
+  }
+
+  function confirmWildValue(value: number) {
+    if (!wildcardPicker || !activeGroup) return;
+    const cardWithValue = { ...wildcardPicker.card, assigned_value: value };
+    const updated = flushGroups.map((g, i) =>
+      i === activeGroup.index ? [...g, cardWithValue] : g
+    );
+    setFlushGroups(updated);
+    setWildcardPicker(null);
   }
 
   function removeCard(group: CardModel[], card: CardModel): CardModel[] {
@@ -115,7 +133,9 @@ export default function GroupSelector({
               onClick={(e) => { e.stopPropagation(); removeCardFromGroup(type, index, c); }}
               className={`text-xs font-bold px-1 py-0.5 rounded border ${isRed(c.suit) ? 'text-red-500 border-red-400' : 'text-gray-200 border-gray-500'} ${isWild(c) ? 'border-yellow-400 text-yellow-500' : ''} bg-gray-900 hover:bg-red-900`}
             >
-              {cardLabel(c)}{suitSymbol(c.suit)}
+              {isWild(c) && c.assigned_value != null
+                ? `★=${VALUE_LABEL[c.assigned_value] ?? c.assigned_value}`
+                : `${cardLabel(c)}${suitSymbol(c.suit)}`}
             </button>
           ))}
           {group.length === 0 && (
@@ -127,6 +147,29 @@ export default function GroupSelector({
   }
 
   return (
+    <>
+    {wildcardPicker && (
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-60 p-4">
+        <div className="bg-gray-900 rounded-xl border border-yellow-500 p-6 flex flex-col gap-4 max-w-xs w-full">
+          <h3 className="text-white font-bold text-base">Wildcard position</h3>
+          <p className="text-sm text-gray-400">Choose what value the wildcard (★) represents in this flush:</p>
+          <div className="flex gap-2 flex-wrap">
+            {wildcardPicker.validValues.map((v) => (
+              <button
+                key={v}
+                onClick={() => confirmWildValue(v)}
+                className="px-3 py-1.5 rounded bg-yellow-700 hover:bg-yellow-600 text-white text-sm font-bold"
+              >
+                {VALUE_LABEL[v] ?? v}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setWildcardPicker(null)} className="text-xs text-gray-500 hover:text-gray-300 self-end">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-900 rounded-xl border border-gray-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-4 flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -189,5 +232,6 @@ export default function GroupSelector({
         </div>
       </div>
     </div>
+    </>
   );
 }

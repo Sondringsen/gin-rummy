@@ -1,7 +1,8 @@
 from collections import Counter
-from dataclasses import dataclass
-from typing import Literal, List, Dict, Tuple
+from dataclasses import dataclass, field
+from typing import Literal, List, Dict, Tuple, Optional
 import random
+import uuid
 
 
 ROUND_REQUIREMENTS: Dict[int, Tuple[int, int]] = {
@@ -18,6 +19,8 @@ ROUND_REQUIREMENTS: Dict[int, Tuple[int, int]] = {
 class Card:
     suit: Literal['S', 'H', 'D', 'C']
     value: int  # 2-14, where 14 = Ace, 11=J, 12=Q, 13=K
+    card_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8], compare=False, hash=False)
+    assigned_value: Optional[int] = field(default=None, compare=False, hash=False)
 
     def __post_init__(self):
         if self.suit not in ('S', 'H', 'D', 'C'):
@@ -44,7 +47,10 @@ class Card:
         return f'{self.suit}{names.get(self.value, self.value)}'
 
     def to_dict(self) -> dict:
-        return {'suit': self.suit, 'value': self.value}
+        d: dict = {'suit': self.suit, 'value': self.value, 'id': self.card_id}
+        if self.assigned_value is not None:
+            d['assigned_value'] = self.assigned_value
+        return d
 
 
 class Deck:
@@ -76,27 +82,43 @@ def _is_valid_tress(cards: List[Card]) -> bool:
 
 
 def _is_valid_flush(cards: List[Card]) -> bool:
-    """Four or more consecutive cards in the same suit (wilds fill gaps; aces can be 1 or 14)."""
+    """Four or more consecutive cards in the same suit (wilds fill gaps; aces can be 1 or 14).
+
+    Wildcards with assigned_value are treated as positioned cards at that value.
+    Wildcards without assigned_value may fill any gap.
+    """
     if len(cards) < 4:
         return False
-    non_wilds = [c for c in cards if not c.is_wild]
-    n_wilds = len(cards) - len(non_wilds)
-    if not non_wilds:
-        return True  # all wilds
 
-    target_suit = non_wilds[0].suit
-    if not all(c.suit == target_suit for c in non_wilds):
+    # Positioned = regular cards + wilds that have an assigned_value
+    # Unpositioned = wilds with no assigned_value (free gap-fillers)
+    unpositioned_wilds = [c for c in cards if c.is_wild and c.assigned_value is None]
+    positioned = [c for c in cards if not c.is_wild or c.assigned_value is not None]
+    n_free_wilds = len(unpositioned_wilds)
+
+    if not positioned:
+        return True  # all unpositioned wilds
+
+    non_wild_positioned = [c for c in positioned if not c.is_wild]
+    if not non_wild_positioned:
+        # Only positioned wilds — no suit constraint, just check run
+        positioned_values = [c.assigned_value for c in positioned]  # type: ignore[misc]
+        return _try_run(positioned_values, n_free_wilds)  # type: ignore[arg-type]
+
+    target_suit = non_wild_positioned[0].suit
+    if not all(c.suit == target_suit for c in non_wild_positioned):
         return False
 
-    non_wild_values = [c.value for c in non_wilds]
+    positioned_values = [
+        c.assigned_value if (c.is_wild and c.assigned_value is not None) else c.value
+        for c in positioned
+    ]
 
-    # Try aces as 14 (default) and as 1
-    if _try_run(non_wild_values, n_wilds):
+    if _try_run(positioned_values, n_free_wilds):
         return True
-    # If any ace present, try treating it as 1
-    if 14 in non_wild_values:
-        alt_values = [1 if v == 14 else v for v in non_wild_values]
-        return _try_run(alt_values, n_wilds)
+    if 14 in positioned_values:
+        alt_values = [1 if v == 14 else v for v in positioned_values]
+        return _try_run(alt_values, n_free_wilds)
     return False
 
 
@@ -164,10 +186,11 @@ class GinRummy:
         self.has_opened = [False] * self.n_players
 
         for _ in range(self.n_players):
-            hand = random.sample(self.fresh_cards, 12)
-            for c in hand:
-                self.fresh_cards.remove(c)
-            self.player_cards.append(list(hand))
+            sampled_indices = random.sample(range(len(self.fresh_cards)), 12)
+            hand = [self.fresh_cards[i] for i in sampled_indices]
+            for i in sorted(sampled_indices, reverse=True):
+                del self.fresh_cards[i]
+            self.player_cards.append(hand)
             self.open_cards.append({'tress': [], 'flush': []})
 
         self.pre_round_phase = True
@@ -197,9 +220,15 @@ class GinRummy:
         if self.has_drawn:
             raise ValueError('Player has already drawn this turn.')
         if not self.fresh_cards:
-            raise ValueError('Fresh deck is empty.')
-        drawn = random.choice(self.fresh_cards)
-        self.fresh_cards.remove(drawn)
+            if len(self.discarded_cards) <= 1:
+                raise ValueError('No cards left to draw.')
+            # Keep the top discard in place; reshuffle the rest into the fresh deck
+            top_discard = self.discarded_cards[-1]
+            self.fresh_cards = self.discarded_cards[:-1]
+            random.shuffle(self.fresh_cards)
+            self.discarded_cards = [top_discard]
+        idx = random.randrange(len(self.fresh_cards))
+        drawn = self.fresh_cards.pop(idx)
         self.player_cards[self.player_turn].append(drawn)
         self.has_drawn = True
         return drawn
@@ -222,8 +251,8 @@ class GinRummy:
         if player_num != self.player_turn:
             # Out-of-turn draw: penalty card from deck
             if self.fresh_cards:
-                penalty = random.choice(self.fresh_cards)
-                self.fresh_cards.remove(penalty)
+                idx = random.randrange(len(self.fresh_cards))
+                penalty = self.fresh_cards.pop(idx)
                 self.player_cards[player_num].append(penalty)
         else:
             self.has_drawn = True
@@ -276,7 +305,7 @@ class GinRummy:
             if not _is_valid_tress([Card(c['suit'], c['value']) for c in group]):
                 return False
         for group in flush_groups:
-            if not _is_valid_flush([Card(c['suit'], c['value']) for c in group]):
+            if not _is_valid_flush([Card(c['suit'], c['value'], assigned_value=c.get('assigned_value')) for c in group]):
                 return False
         # All cards in groups must be in the player's hand (accounting for duplicates)
         submitted: List[Card] = []
@@ -305,11 +334,8 @@ class GinRummy:
         if not self.validate_open(tress_groups, flush_groups):
             raise ValueError('Invalid open: groups do not satisfy round requirements.')
 
-        def to_cards(groups):
-            return [[Card(c['suit'], c['value']) for c in g] for g in groups]
-
-        t_cards = to_cards(tress_groups)
-        f_cards = to_cards(flush_groups)
+        t_cards = [[Card(c['suit'], c['value']) for c in g] for g in tress_groups]
+        f_cards = [[Card(c['suit'], c['value'], assigned_value=c.get('assigned_value')) for c in g] for g in flush_groups]
 
         hand = self.player_cards[self.player_turn]
         for group in t_cards + f_cards:
@@ -348,7 +374,7 @@ class GinRummy:
         if group_index < 0 or group_index >= len(groups):
             raise ValueError(f'Invalid group index {group_index}.')
 
-        new_cards = [Card(c['suit'], c['value']) for c in cards]
+        new_cards = [Card(c['suit'], c['value'], assigned_value=c.get('assigned_value') if group_type == 'flush' else None) for c in cards]
         hand = self.player_cards[player_num]
         hand_counts = Counter(hand)
         for card, count in Counter(new_cards).items():

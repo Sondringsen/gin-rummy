@@ -6,6 +6,8 @@ from pydantic import BaseModel
 class CardModel(BaseModel):
     suit: Literal['S', 'H', 'D', 'C']
     value: int
+    id: Optional[str] = None
+    assigned_value: Optional[int] = None
 
 
 class CreateGameRequest(BaseModel):

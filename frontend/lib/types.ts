@@ -4,6 +4,8 @@ export type GroupType = 'tress' | 'flush';
 export interface CardModel {
   suit: Suit;
   value: number;
+  id?: string;
+  assigned_value?: number;
 }
 
 export interface PlayerView {

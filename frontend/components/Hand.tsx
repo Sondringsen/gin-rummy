@@ -64,7 +64,7 @@ export default function Hand({ cards, selectedCards = [], onCardClick, onReorder
       <div className="flex gap-1 flex-wrap">
         {cards.map((card, i) => (
           <div
-            key={`${card.suit}${card.value}-${i}`}
+            key={card.id ?? `${card.suit}${card.value}-${i}`}
             draggable={!!onReorder}
             onDragStart={() => handleDragStart(i)}
             onDragOver={(e) => handleDragOver(e, i)}
