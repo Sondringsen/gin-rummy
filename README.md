@@ -121,6 +121,43 @@ sudo systemctl start gin-rummy-frontend
 > (`/home/ec2-user/.nvm/versions/node/v24.14.1/bin/npm`). If you upgrade Node, update
 > `deploy/gin-rummy-frontend.service` to match.
 
+### 3. HTTPS / SSL (first time only)
+
+**1. Open port 443 in your AWS Security Group**
+
+In the AWS Console → EC2 → Security Groups → your instance's SG → add an inbound rule: HTTPS (443) from 0.0.0.0/0.
+
+**2. Install Certbot on the EC2 instance**
+
+```bash
+sudo dnf install -y certbot python3-certbot-nginx   # Amazon Linux 2023
+# or for Amazon Linux 2:
+# sudo amazon-linux-extras install epel -y && sudo yum install -y certbot python3-certbot-nginx
+```
+
+**3. Copy the updated nginx.conf to the server**
+
+```bash
+sudo cp nginx.conf /etc/nginx/conf.d/gin-rummy.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**4. Obtain the SSL certificate**
+
+```bash
+sudo certbot --nginx -d ginrummycards.com -d www.ginrummycards.com
+```
+
+Certbot will verify ownership via the `.well-known/acme-challenge/` path and install the cert. Follow the prompts (enter your email for renewal notices).
+
+**5. Set up auto-renewal**
+
+```bash
+sudo systemctl enable --now certbot-renew.timer
+# Verify it works:
+sudo certbot renew --dry-run
+```
+
 ### Redeploying
 
 ```bash
