@@ -161,19 +161,10 @@ sudo certbot renew --dry-run
 ### Redeploying
 
 ```bash
-git pull
+./run.sh
 ```
 
-Then restart only what changed:
-
-| Changed | Command |
-|---------|---------|
-| Backend code | `sudo systemctl restart gin-rummy-backend` |
-| Database models | `alembic upgrade head` |
-| Frontend code | `cd frontend && npm run build && cd .. && sudo systemctl restart gin-rummy-frontend` |
-| Dependencies | `source .venv/bin/activate && pip install -r requirements.txt`, then restart backend |
-
-Each service restarts independently — restarting the backend does not affect the frontend.
+This pulls the latest code, installs dependencies, runs database migrations, rebuilds the frontend, and restarts both services.
 
 ### Logs
 
