@@ -175,7 +175,7 @@ class GinRummy:
         self.fresh_cards = list(all_cards)
 
         self.discarded_cards = []
-        self.player_turn = 0
+        self.player_turn = (self.round - 1) % self.n_players
         self.has_drawn = False
         self.can_draw_from_discarded = False
         self.round_over = False
